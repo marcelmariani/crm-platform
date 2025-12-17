@@ -167,3 +167,5 @@ coverage/
 
 # Ignore internal Git repositories
 **/.git/
+
+/caixa-simulator-service/src/config/caixaSimulator.GoogleDrive.credential.json
