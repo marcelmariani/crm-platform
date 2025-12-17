@@ -1,0 +1,275 @@
+name: Deploy to Production Local
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    timeout-minutes: 25
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy-production:
+    name: 🌐 Deploy to Production Local
+    # Só executa se o PR foi merged (não apenas fechado)
+    if: github.event.pull_request.merged == true
+    runs-on: [self-hosted, Windows, X64]
+    defaults:
+      run:
+        shell: powershell
+        working-directory: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Checkout infra-service
+        uses: actions/checkout@v4
+        with:
+          repository: SmartIA-Systems/infra-service
+          token: ${{ secrets.INFRA_SERVICE_PAT }}
+          ref: main
+          path: infra-service
+
+      - name: Validar checkout infra-service
+        run: |
+          if (-not (Test-Path "infra-service/docker-compose-infra.yml")) {
+            Write-Error "infra-service/docker-compose-infra.yml não encontrado após checkout"
+            exit 1
+          }
+          Write-Host "Conteúdo de infra-service:"
+          Get-ChildItem -Force infra-service
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub (opcional)
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Gerar .env.production.local a partir de Secrets
+        env:
+          # Config gerais
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          PORT: ${{ secrets.PORT }}
+
+          # Mongo
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGO_DATABASE: ${{ secrets.MONGO_DATABASE }}
+
+          # JWT (org secrets)
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          JWT_SERVICE_URL: ${{ secrets.JWT_SERVICE_URL }}
+          JWT_LOGIN_PATH: ${{ secrets.JWT_LOGIN_PATH }}
+          JWT_ADMIN_USERNAME: ${{ secrets.JWT_ADMIN_USERNAME }}
+          JWT_ADMIN_PASS: ${{ secrets.JWT_ADMIN_PASS }}
+
+          # Redis (org secrets)
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+
+          # SSL
+          SSL_KEY_PATH: ${{ secrets.SSL_KEY_PATH }}
+          SSL_CERT_PATH: ${{ secrets.SSL_CERT_PATH }}
+
+          # AWS (org secrets)
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+
+          # OpenAI (org secrets)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+
+          # Variáveis de serviço (repo)
+          APP_RESOURCE_NAME: ${{ secrets.APP_RESOURCE_NAME }}
+          WA_SESSION_DIR: ${{ secrets.WA_SESSION_DIR }}
+          WA_LOG_LEVEL: ${{ secrets.WA_LOG_LEVEL }}
+          WA_REPLY_QUOTE: ${{ secrets.WA_REPLY_QUOTE }}
+          PROPOSAL_PRODUCT_MAP: ${{ secrets.PROPOSAL_PRODUCT_MAP }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+
+          # Variáveis globais (org secrets) — URLs de serviços
+          APP_AGENT_SERVICE_URL: ${{ secrets.APP_AGENT_SERVICE_URL }}
+          APP_REAL_ESTATE_SERVICE_URL: ${{ secrets.APP_REAL_ESTATE_SERVICE_URL }}
+          APP_BANK_CORRESPONDENT_SERVICE_URL: ${{ secrets.APP_BANK_CORRESPONDENT_SERVICE_URL }}
+          APP_BANK_SERVICE_URL: ${{ secrets.APP_BANK_SERVICE_URL }}
+          APP_IA_ADMIN_CONFIGURATION_SERVICE_URL: ${{ secrets.APP_IA_ADMIN_CONFIGURATION_SERVICE_URL }}
+          APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL: ${{ secrets.APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL }}
+          APP_CAIXA_SIMULATOR_SERVICE_URL: ${{ secrets.APP_CAIXA_SIMULATOR_SERVICE_URL }}
+          APP_WHATSAPP_SERVICE_URL: ${{ secrets.APP_WHATSAPP_SERVICE_URL }}
+          APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL: ${{ secrets.APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL }}
+          APP_CONTACT_SERVICE_URL: ${{ secrets.APP_CONTACT_SERVICE_URL }}
+          APP_SALES_SERVICE_URL: ${{ secrets.APP_SALES_SERVICE_URL }}
+
+        run: |
+          # Gera o conteúdo do .env.production.local usando exatamente os nomes das variáveis
+          $lines = @()
+          $vars = @(
+            'NODE_ENV','PORT',
+            'MONGO_URI','MONGO_DATABASE',
+            'JWT_SECRET','JWT_EXPIRES_IN','JWT_SERVICE_URL','JWT_LOGIN_PATH','JWT_ADMIN_USERNAME','JWT_ADMIN_PASS',
+            'REDIS_URL',
+            'SSL_KEY_PATH','SSL_CERT_PATH',
+            'AWS_REGION','AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY','AWS_S3_BUCKET',
+            'OPENAI_API_KEY','OPENAI_MODEL'
+          )
+
+          # Acrescenta variáveis de serviço
+          $vars += @('APP_RESOURCE_NAME','WA_SESSION_DIR','WA_LOG_LEVEL','WA_REPLY_QUOTE','PROPOSAL_PRODUCT_MAP','LOG_LEVEL')
+
+          # Acrescenta variáveis globais (org) com URLs
+          $vars += @(
+            'APP_AGENT_SERVICE_URL','APP_REAL_ESTATE_SERVICE_URL','APP_BANK_CORRESPONDENT_SERVICE_URL','APP_BANK_SERVICE_URL',
+            'APP_IA_ADMIN_CONFIGURATION_SERVICE_URL','APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL','APP_CAIXA_SIMULATOR_SERVICE_URL',
+            'APP_WHATSAPP_SERVICE_URL','APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL','APP_CONTACT_SERVICE_URL','APP_SALES_SERVICE_URL'
+          )
+
+          # Define NODE_ENV=production por padrão se não existir
+          if (-not $env:NODE_ENV -or $env:NODE_ENV.Trim() -eq '') { 
+            $env:NODE_ENV = 'production'
+          }
+
+          foreach ($v in $vars) {
+            # Acesso dinâmico às variáveis de ambiente usando $env:
+            # Usa Invoke-Expression para acesso dinâmico a $env:VARNAME
+            $val = (Invoke-Expression "`$env:$v")
+            if ($null -ne $val -and $val.Trim() -ne '') { 
+              $lines += "$v=$val"
+              Write-Host "[OK] $v=$($val.Substring(0, [Math]::Min(50, $val.Length)))..."
+            } else { 
+              $lines += "$v="
+              Write-Host "[EMPTY] $v"
+            }
+          }
+
+          # Tratamento especial: se AWS_S3_BUCKET estiver vazio mas AWS_S3_BUCKET_NAME existir, use-o
+          if ((-not $env:AWS_S3_BUCKET -or $env:AWS_S3_BUCKET.Trim() -eq '') -and ($null -ne $env:AWS_S3_BUCKET_NAME -and $env:AWS_S3_BUCKET_NAME.Trim() -ne '')) {
+            # Substitui/insere linha para AWS_S3_BUCKET
+            $lines = $lines | ForEach-Object {
+              if ($_ -match '^AWS_S3_BUCKET=') { "AWS_S3_BUCKET=$($env:AWS_S3_BUCKET_NAME)" } else { $_ }
+            }
+          }
+
+          # Escreve o arquivo
+          $content = ($lines -join "`n") + "`n"
+          Set-Content -Path ".env.production.local" -Value $content -Encoding UTF8
+          Write-Host "Arquivo .env.production.local gerado com $(($lines).Count) variáveis."
+
+      - name: Validar arquivo .env
+        run: |
+          if (-Not (Test-Path ".env.production.local")) { 
+            Write-Error ".env.production.local não foi gerado"
+            exit 1
+          }
+          Write-Host "========== Conteúdo do .env.production.local =========="
+          Get-Content .env.production.local
+          Write-Host "========================================================"
+          Write-Host "Total de linhas: $((Get-Content .env.production.local).Count)"
+          Write-Host "Local do workspace: $env:GITHUB_WORKSPACE"
+          Write-Host "Arquivos na raiz:"
+          Get-ChildItem -Force | Select-Object Name,Length
+
+      - name: Preparar rede Docker
+        shell: cmd
+        run: docker network inspect smart-net >nul 2>&1 || docker network create smart-net
+
+      - name: Limpar caches Docker/BuildKit
+        if: false
+        run: |
+          Write-Host "Pruning Docker builder and system caches..."
+          # Tenta limpar caches do Buildx/BuildKit
+          try { docker buildx prune -af -f } catch { Write-Warning "buildx prune falhou: $($_.Exception.Message)" }
+          try { docker builder prune -af -f } catch { Write-Warning "builder prune falhou: $($_.Exception.Message)" }
+          # Limpa imagens/containers/parâmetros residuais
+          try { docker system prune -af --volumes } catch { Write-Warning "system prune falhou: $($_.Exception.Message)" }
+          Write-Host "Prune concluído."
+
+      - name: Docker Compose UP (production.local)
+        run: |
+          $envFile = Join-Path $env:GITHUB_WORKSPACE ".env.production.local"
+          if (-Not (Test-Path $envFile)) { 
+            Write-Error "Env file não encontrado: $envFile"
+            exit 1
+          }
+          Write-Host "Usando env-file: $envFile"
+
+          $args = @(
+            'compose','-f','docker-compose-production-local.yml',
+            '--env-file', $envFile,
+            '--progress','plain',
+            'up','-d','--build'
+          )
+
+          # Primeira tentativa com BuildKit ativado
+          $env:COMPOSE_DOCKER_CLI_BUILD = "1"
+          $env:DOCKER_BUILDKIT = "1"
+          Write-Host "Tentando build com BuildKit habilitado..."
+          & docker @args
+          $firstExit = $LASTEXITCODE
+          if ($firstExit -ne 0) {
+            Write-Warning "Compose com BuildKit falhou (exit=$firstExit). Limpando caches e tentando sem BuildKit..."
+            try { docker buildx prune -af -f } catch { Write-Warning "buildx prune falhou: $($_.Exception.Message)" }
+            try { docker builder prune -af -f } catch { Write-Warning "builder prune falhou: $($_.Exception.Message)" }
+            try { docker system prune -af --volumes } catch { Write-Warning "system prune falhou: $($_.Exception.Message)" }
+
+            # A prune pode remover redes; garanta que smart-net existe novamente
+            Write-Host "Garantindo rede externa smart-net..."
+            docker network inspect smart-net | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Rede smart-net não existe; recriando..."
+              docker network create smart-net | Out-Null
+            }
+
+            $env:COMPOSE_DOCKER_CLI_BUILD = "0"
+            $env:DOCKER_BUILDKIT = "0"
+            Write-Host "Executando sem BuildKit..."
+            & docker @args
+            $secondExit = $LASTEXITCODE
+            if ($secondExit -ne 0) {
+              Write-Error "Compose falhou mesmo sem BuildKit (exit=$secondExit)."
+              exit $secondExit
+            }
+          }
+
+      - name: Inspect containers e serviços
+        if: always()
+        run: |
+          Write-Host "== docker ps -a =="
+          docker ps -a
+          Write-Host "== docker compose ps =="
+          docker compose -f docker-compose-production-local.yml --env-file ".env.production.local" ps
+
+      - name: Logs do serviço (últimos 200)
+        if: always()
+        run: |
+          docker compose -f docker-compose-production-local.yml --env-file ".env.production.local" logs --tail 200 whatsapp
+
+      - name: Verificar container
+        run: |
+          Start-Sleep -Seconds 5
+          $status = docker ps --filter "name=whatsapp-communication-service" --format "{{.Status}}"
+          Write-Host "Container status: $status"
+
+      - name: Testar health endpoint
+        run: |
+          # Ajuste a porta conforme exposta no compose
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:3100/health" -Method GET -UseBasicParsing -TimeoutSec 10
+            Write-Host "Health response: $($response.StatusCode)"
+          } catch {
+            Write-Warning "Falha ao consultar health endpoint: $($_.Exception.Message)"
+          }
+
+      - name: Resumo do deploy
+        run: |
+          Write-Host "Deploy concluído com compose local e env gerado por Secrets."

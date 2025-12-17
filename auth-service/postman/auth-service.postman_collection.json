@@ -1,0 +1,3027 @@
+{
+  "info": {
+    "name": "Auth Service API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "var data = pm.response.json();",
+                  "pm.expect(data.token).to.be.a('string');",
+                  "pm.environment.set('token', data.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Users Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"users\"\n}"
+            },
+            "url": "{{baseUrl}}/groups"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "var g = pm.response.json();",
+                  "pm.environment.set('usersGroupId', g._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"john\",\n  \"password\": \"secret123\",\n  \"groupId\": \"{{usersGroupId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "var u = pm.response.json();",
+                  "pm.environment.set('userId', u._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/users"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Tem lista de usuários', function(){ pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/users/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna usuário correto', function(){ pm.expect(pm.response.json()._id).to.eql(pm.environment.get('userId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Contém informações do usuário', function(){ var me = pm.response.json(); pm.expect(me.userName).to.eql(pm.environment.get('adminUser')); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"temp-group\"\n}"
+            },
+            "url": "{{baseUrl}}/groups"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "var g = pm.response.json();",
+                  "pm.environment.set('groupId', g._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Groups",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/groups"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Tem lista de grupos', function(){ pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Group By Id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/groups/{{groupId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna grupo correto', function(){ pm.expect(pm.response.json()._id).to.eql(pm.environment.get('groupId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Group",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"temp-group-updated\"\n}"
+            },
+            "url": "{{baseUrl}}/groups/{{groupId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Nome atualizado', function(){ pm.expect(pm.response.json().name).to.eql('temp-group-updated'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Resources",
+      "item": [
+        {
+          "name": "Create Resource",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceName\": \"temp-resource\"\n}"
+            },
+            "url": "{{baseUrl}}/resources"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "var r = pm.response.json();",
+                  "pm.environment.set('resourceId', r._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/resources"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Tem lista de recursos', function(){ pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Resource By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/resources/{{resourceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna recurso correto', function(){ pm.expect(pm.response.json()._id).to.eql(pm.environment.get('resourceId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Resource By Name",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/resources/by-name/temp-resource"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna recurso pelo nome', function(){ pm.expect(pm.response.json().resourceName).to.eql('temp-resource'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Resource",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceName\": \"temp-resource-upd\"\n}"
+            },
+            "url": "{{baseUrl}}/resources/{{resourceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Nome de recurso atualizado', function(){ pm.expect(pm.response.json().resourceName).to.eql('temp-resource-upd'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Grants",
+      "item": [
+        {
+          "name": "Upsert Grant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"{{usersGroupId}}\",\n  \"resourceId\": \"{{resourceId}}\",\n  \"perms\": 15,\n  \"scope\": \"all\"\n}"
+            },
+            "url": "{{baseUrl}}/grants"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Grants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/grants?groupId={{usersGroupId}}&resourceId={{resourceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna grants', function(){ pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Effective Grant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/grants/effective?groupId={{usersGroupId}}&resourceId={{resourceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Retorna grant efetivo', function(){ var g = pm.response.json(); pm.expect(g.groupId).to.eql(pm.environment.get('usersGroupId')); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete Resource",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/resources/{{resourceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hierarchy Access",
+      "item": [
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Admin bank access', function(){ pm.expect(g.perms).to.eql(15); pm.expect(g.scope).to.eql('all'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Admin bank-correspondent access', function(){ pm.expect(g.perms).to.eql(15); pm.expect(g.scope).to.eql('all'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Admin real-estate access', function(){ pm.expect(g.perms).to.eql(15); pm.expect(g.scope).to.eql('all'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Admin agent access', function(){ pm.expect(g.perms).to.eql(15); pm.expect(g.scope).to.eql('all'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bank Correspondent",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{bankCorrespondentUser}}\",\n  \"password\": \"{{bankCorrespondentPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent real-estate manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent agent manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Real Estate",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{realEstateUser}}\",\n  \"password\": \"{{realEstatePassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Real estate own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Real estate agent manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No correspondent access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Agent",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{agentUser}}\",\n  \"password\": \"{{agentPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Agent own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No real estate access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No correspondent access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bank Correspondent Santander",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{bankCorrespondentSantanderUser}}\",\n  \"password\": \"{{bankCorrespondentSantanderPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent real-estate manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Correspondent agent manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Real Estate Santander",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{realEstateSantanderUser}}\",\n  \"password\": \"{{realEstateSantanderPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Real estate own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Real estate agent manage', function(){ pm.expect(g.perms).to.eql(7); pm.expect(g.scope).to.eql('own+linked'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No correspondent access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Agent Santander",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{agentSantanderUser}}\",\n  \"password\": \"{{agentSantanderPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/auth/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var me = pm.response.json();",
+                      "pm.expect(me.groupId).to.be.a('string');",
+                      "pm.environment.set('groupId', me.groupId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=agent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('Agent own read', function(){ pm.expect(g.perms).to.eql(2); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant real-estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=real-estate"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No real estate access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank-correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank-correspondent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No correspondent access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Grant bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/grants/effective?groupId={{groupId}}&resourceName=bank"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var g = pm.response.json();",
+                      "pm.test('No bank access', function(){ pm.expect(g.perms).to.eql(0); pm.expect(g.scope).to.eql('own'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Service Access",
+      "item": [
+        {
+          "name": "Setup",
+          "item": [
+            {
+              "name": "Admin Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Banks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/banks"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var banks = pm.response.json();",
+                      "var caixa = banks.find(b => b.name === 'bank-caixa');",
+                      "var sant = banks.find(b => b.name === 'bank-santander');",
+                      "pm.environment.set('bankCaixaId', caixa._id);",
+                      "pm.environment.set('bankSantanderId', sant._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Bank Correspondents",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "var cx = data.find(c => c.name === 'bank-correspondent-caixa');",
+                      "var sd = data.find(c => c.name === 'bank-correspondent-santander');",
+                      "pm.environment.set('bankCorrespondentCaixaId', cx._id);",
+                      "pm.environment.set('bankCorrespondentSantanderId', sd._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Real Estates",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "var cx = data.find(r => r.name === 'real-estate-caixa');",
+                      "var sd = data.find(r => r.name === 'real-estate-santander');",
+                      "pm.environment.set('realEstateCaixaId', cx._id);",
+                      "pm.environment.set('realEstateSantanderId', sd._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Agents",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "var cx = data.find(a => a.name === 'agent-caixa');",
+                      "var sd = data.find(a => a.name === 'agent-santander');",
+                      "pm.environment.set('agentCaixaId', cx._id);",
+                      "pm.environment.set('agentSantanderId', sd._id);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bank Service",
+          "item": [
+            {
+              "name": "Create Bank",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"temp-bank\",\n  \"code\": \"999\",\n  \"status\": \"active\"\n}"
+                },
+                "url": "{{baseUrl}}/banks"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                      "var b = pm.response.json();",
+                      "pm.environment.set('tempBankId', b._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Bank",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/banks/{{tempBankId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var b = pm.response.json();",
+                      "pm.test('Correct bank retrieved', function(){ pm.expect(b.name).to.eql('temp-bank'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Bank",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"inactive\"\n}"
+                },
+                "url": "{{baseUrl}}/banks/{{tempBankId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Bank",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/banks/{{tempBankId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Deleted', function () { pm.expect([200,204]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Bank Correspondent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{bankCorrespondentUser}}\",\n  \"password\": \"{{bankCorrespondentPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Bank access forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/banks"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bank Correspondent Service",
+          "item": [
+            {
+              "name": "Admin Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Bank Correspondent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"temp-bc\",\n  \"code\": \"TEMP\",\n  \"bankId\": \"{{bankCaixaId}}\",\n  \"status\": \"active\"\n}"
+                },
+                "url": "{{baseUrl}}/bank-correspondents"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                      "var bc = pm.response.json();",
+                      "pm.environment.set('tempBankCorrespondentId', bc._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Bank Correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{tempBankCorrespondentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Bank Correspondent",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"inactive\"\n}"
+                },
+                "url": "{{baseUrl}}/bank-correspondents/{{tempBankCorrespondentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Bank Correspondent",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{tempBankCorrespondentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Deleted', function () { pm.expect([200,204]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Correspondent Caixa",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{bankCorrespondentUser}}\",\n  \"password\": \"{{bankCorrespondentPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Own Correspondent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{bankCorrespondentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Other Correspondent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{bankCorrespondentSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Linked Real Estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{realEstateCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Unlinked Real Estate forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{realEstateSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Linked Agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Unlinked Agent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Real Estate Service",
+          "item": [
+            {
+              "name": "Admin Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Real Estate",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"temp-real-estate\",\n  \"cnpj\": \"33.333.333/0001-99\",\n  \"email\": \"temp@re.local\",\n  \"phone\": \"(11) 7777-7777\",\n  \"address\": {\"street\":\"Rua Temp\",\"number\":\"123\",\"city\":\"São Paulo\",\"state\":\"SP\",\"zip\":\"03000-000\"},\n  \"bankCorrespondentIds\": [\"{{bankCorrespondentCaixaId}}\"],\n  \"status\": \"active\"\n}"
+                },
+                "url": "{{baseUrl}}/real-estates"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                      "var re = pm.response.json();",
+                      "pm.environment.set('tempRealEstateId', re._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Real Estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{tempRealEstateId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Real Estate",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"inactive\"\n}"
+                },
+                "url": "{{baseUrl}}/real-estates/{{tempRealEstateId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Real Estate",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{tempRealEstateId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Deleted', function () { pm.expect([200,204]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Real Estate Caixa",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{realEstateUser}}\",\n  \"password\": \"{{realEstatePassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Own Real Estate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{realEstateCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Other Real Estate forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{realEstateSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Own Agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Unlinked Agent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Bank Correspondent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{bankCorrespondentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Agent Service",
+          "item": [
+            {
+              "name": "Admin Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Agent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"temp-agent\",\n  \"email\": \"temp.agent@exemplo.local\",\n  \"phone\": \"(11) 8888-8888\",\n  \"licenseNumber\": \"LIC-TEMP-001\",\n  \"realEstateIds\": [\"{{realEstateCaixaId}}\"],\n  \"status\": \"active\"\n}"
+                },
+                "url": "{{baseUrl}}/agents"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                      "var ag = pm.response.json();",
+                      "pm.environment.set('tempAgentId', ag._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{tempAgentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Agent",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"inactive\"\n}"
+                },
+                "url": "{{baseUrl}}/agents/{{tempAgentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Agent",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{tempAgentId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Deleted', function () { pm.expect([200,204]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Real Estate Caixa",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{realEstateUser}}\",\n  \"password\": \"{{realEstatePassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Extra Agent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"agent-caixa-extra\",\n  \"email\": \"agent.caixa.extra@exemplo.local\",\n  \"phone\": \"(11) 9999-9999\",\n  \"licenseNumber\": \"LIC-CAIXA-002\",\n  \"realEstateIds\": [\"{{realEstateCaixaId}}\"],\n  \"status\": \"active\"\n}"
+                },
+                "url": "{{baseUrl}}/agents"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                      "var ag = pm.response.json();",
+                      "pm.environment.set('agentCaixaExtraId', ag._id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Agent Caixa",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{agentUser}}\",\n  \"password\": \"{{agentPassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Own Agent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Colleague Agent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentCaixaExtraId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Agent Santander forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentSantanderId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Real Estate forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/real-estates/{{realEstateCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Bank Correspondent forbidden",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/bank-correspondents/{{bankCorrespondentCaixaId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Forbidden', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login Real Estate Caixa",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userName\": \"{{realEstateUser}}\",\n  \"password\": \"{{realEstatePassword}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                      "var data = pm.response.json();",
+                      "pm.expect(data.token).to.be.a('string');",
+                      "pm.environment.set('token', data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Extra Agent",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/agents/{{agentCaixaExtraId}}"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Deleted', function () { pm.expect([200,204]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

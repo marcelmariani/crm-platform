@@ -1,0 +1,45 @@
+{
+  "name": "whatsapp-communication-service",
+  "version": "1.0.104",
+  "type": "module",
+  "private": true,
+  "description": "WhatsApp customer support bot using Baileys + OpenAI Chat Completions",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development nodemon src/index.js",
+    "test": "cross-env NODE_ENV=test vitest run --coverage",
+    "staging": "cross-env NODE_ENV=staging nodemon src/index.js",
+    "start": "node src/index.js",
+    "production": "cross-env NODE_ENV=production node src/index.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.690.0",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "axios": "^1.7.4",
+    "axios-retry": "^4.5.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^4.19.2",
+    "https": "^1.0.0",
+    "ioredis": "^5.7.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.5.3",
+    "openai": "^4.58.1",
+    "pino": "^9.4.0",
+    "pino-pretty": "^13.1.1",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "remove-accents": "^0.5.0",
+    "serverless-http": "^3.2.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.7",
+    "serverless": "^3.40.0",
+    "serverless-offline": "^13.9.0",
+    "serverless-prune-plugin": "^2.1.0"
+  }
+}

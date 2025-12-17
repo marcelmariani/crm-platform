@@ -1,0 +1,27 @@
+# seller-service/docker-compose.yml
+services:
+  seller-service:
+    container_name: seller-service
+    build: .
+    image: seller-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3010}
+    ports:
+      - "${PORT:-3010}:${PORT:-3010}"
+    networks:
+      smart-net:
+        aliases: [seller-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3010}/health || curl -s http://localhost:${PORT:-3010}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+networks:
+  smart-net:
+    external: true

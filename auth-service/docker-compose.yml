@@ -1,0 +1,44 @@
+# auth-service/docker-compose.yml
+services:
+  auth-service:
+    container_name: auth-service
+    build: .
+    image: auth-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3000}
+
+      # Fallback: definir também no .env ou .env.*
+      COMMON_MONGODB_URI: ${COMMON_MONGODB_URI:-mongodb://root:root@mongo:27017}
+      AUTH_MONGODB_URI:   ${AUTH_MONGODB_URI:-mongodb://root:root@mongo:27017}
+      BANK_MONGODB_URI:   ${BANK_MONGODB_URI:-mongodb://root:root@mongo:27017}
+      BC_MONGODB_URI:     ${BC_MONGODB_URI:-mongodb://root:root@mongo:27017}
+      RE_MONGODB_URI:     ${RE_MONGODB_URI:-mongodb://root:root@mongo:27017}
+      AG_MONGODB_URI:     ${AG_MONGODB_URI:-mongodb://root:root@mongo:27017}
+
+      # Databases: definir também no .env.*
+      AUTH_MONGO_DATABASE: ${AUTH_MONGO_DATABASE:-staging-auth-service}
+      BANK_MONGO_DATABASE: ${BANK_MONGO_DATABASE:-staging-bank-service}
+      BC_MONGO_DATABASE:   ${BC_MONGO_DATABASE:-staging-bank-correspondent-service}
+      RE_MONGO_DATABASE:   ${RE_MONGO_DATABASE:-staging-real-estate-service}
+      AG_MONGO_DATABASE:   ${AG_MONGO_DATABASE:-staging-agent-service}
+
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    networks:
+      smart-net:
+        aliases: [auth-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3000}/ || curl -s http://localhost:${PORT:-3000}/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+
+networks:
+  smart-net:
+    external: true

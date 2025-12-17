@@ -1,0 +1,299 @@
+name: Build Production
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy-production:
+    name: 🌐 Deploy to AWS Lambda (Production)
+    # Só executa se o PR foi merged (não apenas fechado)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Serverless Framework
+        run: npm install -g serverless@3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Report SSM parameter status
+        run: |
+          echo "### SSM Parameter Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$MISSING_REQUIRED" ]; then
+            echo "**Missing required (non-blocking):** $MISSING_REQUIRED" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_REQUIRED_DETAILS" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Details (required):" >> $GITHUB_STEP_SUMMARY
+              IFS=',' read -ra reqdet <<< "$MISSING_REQUIRED_DETAILS"
+              for entry in "${reqdet[@]}"; do
+                echo "- $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          else
+            echo "**All required parameters present**" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "$MISSING_OPTIONAL" ]; then
+            echo "**Missing optional:** $MISSING_OPTIONAL" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_OPTIONAL_DETAILS" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Details (optional):" >> $GITHUB_STEP_SUMMARY
+              IFS=',' read -ra optdet <<< "$MISSING_OPTIONAL_DETAILS"
+              for entry in "${optdet[@]}"; do
+                echo "- $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          fi
+          echo "**Counts:** Required missing: ${REQUIRED_COUNT:-0} • Optional missing: ${OPTIONAL_COUNT:-0}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Export env vars from SSM (production)
+        run: |
+          # Export all needed parameters to environment for Serverless
+          export_if_exists() {
+            name="$1"; envkey="$2"; with_dec="$3"
+            if [ "$with_dec" = "true" ]; then
+              val=$(aws ssm get-parameter --name "$name" --with-decryption --region us-east-1 --query 'Parameter.Value' --output text 2>/dev/null || true)
+            else
+              val=$(aws ssm get-parameter --name "$name" --region us-east-1 --query 'Parameter.Value' --output text 2>/dev/null || true)
+            fi
+            if [ -n "$val" ] && [ "$val" != "None" ]; then
+              echo "$envkey=$val" >> $GITHUB_ENV
+            fi
+          }
+
+          # Auth Service - Application Settings
+          export_if_exists /smartia/production/auth-service/app_resource_name APP_RESOURCE_NAME true
+
+          # Auth Service - MongoDB
+          export_if_exists /smartia/production/auth-service/mongo-uri MONGO_URI true
+          export_if_exists /smartia/production/auth-service/mongo-database MONGO_DATABASE false            
+
+          # JWT / Auth
+          export_if_exists /smartia/production/auth-service/jwt-secret JWT_SECRET true
+          export_if_exists /smartia/production/auth-service/jwt-expires-in JWT_EXPIRES_IN false
+          export_if_exists /smartia/production/auth-service/jwt-admin-username JWT_ADMIN_USERNAME false
+          export_if_exists /smartia/production/auth-service/jwt-admin-pass JWT_ADMIN_PASS true
+          export_if_exists /smartia/production/auth-service/jwt-service-url JWT_SERVICE_URL false
+          export_if_exists /smartia/production/auth-service/jwt-login-path JWT_LOGIN_PATH false
+
+          # Grants
+          export_if_exists /smartia/production/auth-service/grants-check-method AUTH_GRANTS_CHECK_METHOD false
+          export_if_exists /smartia/production/auth-service/grants-check-path AUTH_GRANTS_CHECK_PATH false
+          export_if_exists /smartia/production/auth-service/grants-query-group-key AUTH_GRANTS_QUERY_GROUP_KEY false
+          export_if_exists /smartia/production/auth-service/grants-query-resource-key AUTH_GRANTS_QUERY_RESOURCE_KEY false
+
+          # Common
+          export_if_exists /smartia/production/common/node-env NODE_ENV false
+          export_if_exists /smartia/production/common/log-level LOG_LEVEL false
+
+          # Redis
+          export_if_exists /smartia/production/redis/url REDIS_URL true
+          export_if_exists /smartia/production/redis/prefix-cache-simulator REDIS_PREFIX_CAIXA_SIMULATOR false
+          export_if_exists /smartia/production/redis/prefix-sales REDIS_PREFIX_SALES false
+          export_if_exists /smartia/production/redis/queue-attempts REDIS_QUEUE_ATTEMPTS false
+          export_if_exists /smartia/production/redis/queue-backoff-ms REDIS_QUEUE_BACKOFF_MS false
+          export_if_exists /smartia/production/redis/queue-dlq-contract REDIS_QUEUE_DLQ_CONTRACT false
+          export_if_exists /smartia/production/redis/queue-dlq-proposal REDIS_QUEUE_DLQ_PROPOSAL false
+          export_if_exists /smartia/production/redis/queue-enabled REDIS_QUEUE_ENABLED false
+          export_if_exists /smartia/production/redis/queue-name-cache-simulator REDIS_QUEUE_NAME_CAIXA_SIMULATOR false
+          export_if_exists /smartia/production/redis/queue-name-sales REDIS_QUEUE_NAME_SALES false
+          export_if_exists /smartia/production/redis/workers-simultaneous REDIS_WORKERS_SIMULTANEOUS false
+
+          # Email
+          export_if_exists /smartia/production/email/mail-from MAIL_FROM false
+          export_if_exists /smartia/production/email/notifications-fallback-to NOTIFICATIONS_FALLBACK_TO false
+          export_if_exists /smartia/production/email/smtp-host SMTP_HOST false
+          export_if_exists /smartia/production/email/smtp-port SMTP_PORT false
+          export_if_exists /smartia/production/email/smtp-user SMTP_USER false
+          export_if_exists /smartia/production/email/smtp-pass SMTP_PASS true
+          export_if_exists /smartia/production/email/smtp-secure SMTP_SECURE false
+          export_if_exists /smartia/production/email/smtp-tls-reject-unauthorized SMTP_TLS_REJECT_UNAUTHORIZED false
+
+          # AWS
+          export_if_exists /smartia/production/aws/region AWS_REGION_ false
+          export_if_exists /smartia/production/aws/s3-bucket-name AWS_S3_BUCKET_NAME false
+
+          # Puppeteer
+          export_if_exists /smartia/production/puppeteer/devtools PUPPETEER_DEVTOOLS false
+          export_if_exists /smartia/production/puppeteer/headless PUPPETEER_HEADLESS false
+          export_if_exists /smartia/production/puppeteer/keep-open-on-error PUPPETEER_KEEP_OPEN_ON_ERROR false
+          export_if_exists /smartia/production/puppeteer/keep-open-on-success PUPPETEER_KEEP_OPEN_ON_SUCCESS false
+          export_if_exists /smartia/production/puppeteer/slowmo PUPPETEER_SLOWMO false
+
+          # OpenAI
+          export_if_exists /smartia/production/openai/model OPENAI_MODEL false
+          export_if_exists /smartia/production/openai/api-key OPENAI_API_KEY true
+
+          # Application Service URLs
+          export_if_exists /smartia/production/app-services/agent-service-url APP_AGENT_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/bank-correspondent-service-url APP_BANK_CORRESPONDENT_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/bank-service-url APP_BANK_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/caixa-simulator-service-url APP_CAIXA_SIMULATOR_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/contact-service-url APP_CONTACT_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/contract-service-url APP_CONTRACT_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/ia-admin-configuration-service-url APP_IA_ADMIN_CONFIGURATION_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/ia-customer-configuration-service-url APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/product-service-url APP_PRODUCT_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/real-estate-service-url APP_REAL_ESTATE_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/sales-service-url APP_SALES_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/seller-service-url APP_SELLER_SERVICE_URL false
+          export_if_exists /smartia/production/app-services/whatsapp-service-caixa-simulator-webhook-url APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL false
+          export_if_exists /smartia/production/app-services/whatsapp-service-url APP_WHATSAPP_SERVICE_URL false
+
+      - name: Deploy to AWS Lambda
+        run: serverless deploy --stage production --region us-east-1 --verbose
+
+      - name: Get API Gateway endpoint
+        id: endpoint
+        run: |
+          STACK_NAME="auth-service-production"
+          REGION="us-east-1"
+          endpoint=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" \
+            --output text)
+
+          if [ -z "$endpoint" ] || [ "$endpoint" = "None" ]; then
+            echo "❌ Could not resolve HttpApiUrl from CloudFormation outputs"
+            exit 1
+          fi
+          # Sanitize endpoint to prevent duplicated domain issues
+          endpoint_sanitized=$(echo "$endpoint" | sed -E 's/(amazonaws\.com){2,}/amazonaws.com/' | sed -E 's/comamazonaws\.com/amazonaws.com/')
+          echo "API_ENDPOINT=$endpoint_sanitized" >> $GITHUB_OUTPUT
+          echo "🌐 Production Endpoint: $endpoint_sanitized"
+
+      - name: Test health endpoint
+        run: |
+          endpoint="${{ steps.endpoint.outputs.API_ENDPOINT }}"
+          # Debug original endpoint
+          echo "Raw endpoint from stack: $endpoint"
+          # Normalize common corruption patterns:
+          # 1. Repeated 'amazonaws.com' -> collapse to single occurrence
+          # 2. Inserted 'comamazonaws.com' sequence -> fix to 'amazonaws.com'
+          endpoint=$(echo "$endpoint" | sed -E 's/(amazonaws\.com){2,}/amazonaws.com/' | sed -E 's/comamazonaws\.com/amazonaws.com/')
+          echo "Sanitized endpoint: $endpoint"
+          echo "Testing: $endpoint/v1/health"
+          response=$(curl -s -w "\n%{http_code}" "$endpoint/v1/health")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" != "200" ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Health check passed!"
+
+      - name: Comment PR with deployment info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const endpoint = '${{ steps.endpoint.outputs.API_ENDPOINT }}';
+            const sha = context.sha.substring(0, 7);
+            const prNumber = context.payload.pull_request.number;
+            
+            const body = `## ✅ Successfully Deployed to Production
+            
+            **Environment:** AWS Lambda (HTTP API)
+            **Region:** us-east-1
+            **Stage:** production
+            **Commit:** ${sha}
+            
+            ### 🌐 API Endpoint
+            \`\`\`
+            ${endpoint}
+            \`\`\`
+            
+            ### 🧪 Quick Test
+            \`\`\`bash
+            # Health check
+            curl ${endpoint}/v1/health
+            
+            # Login example
+            curl -X POST ${endpoint}/v1/auth/login \\
+              -H "Content-Type: application/json" \\
+              -d '{"email":"admin@example.com","password":"your-password"}'
+            \`\`\`
+            
+            ### 📊 AWS Free Tier Status
+            - Lambda: 1M requests/month (permanent)
+            - HTTP API: 1M requests/month (12 months)
+            - CloudWatch Logs: 5GB ingestion, 5GB storage
+            
+            ---
+            _Deployed via GitHub Actions • [View logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body
+            });
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Endpoint:** ${{ steps.endpoint.outputs.API_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** us-east-1" >> $GITHUB_STEP_SUMMARY
+          echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SSM Parameters" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$MISSING_REQUIRED" ]; then
+            echo "- Missing required (non-blocking): $MISSING_REQUIRED" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_REQUIRED_DETAILS" ]; then
+              IFS=',' read -ra reqdet <<< "$MISSING_REQUIRED_DETAILS"
+              for entry in "${reqdet[@]}"; do
+                echo "  - $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          else
+            echo "- All required parameters present" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "$MISSING_OPTIONAL" ]; then
+            echo "- Missing optional: $MISSING_OPTIONAL" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_OPTIONAL_DETAILS" ]; then
+              IFS=',' read -ra optdet <<< "$MISSING_OPTIONAL_DETAILS"
+              for entry in "${optdet[@]}"; do
+                echo "  - $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Cost Optimization" >> $GITHUB_STEP_SUMMARY
+          echo "- Using HTTP API (cheaper than REST API)" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory: 512 MB (balanced cost/performance)" >> $GITHUB_STEP_SUMMARY
+          echo "- Log retention: 7 days" >> $GITHUB_STEP_SUMMARY
+          echo "- Free tier: 1M requests/month" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,30 @@
+[
+  { "ParameterKey": "VpcId", "ParameterValue": "vpc-0f323895693ae6286" },
+  { "ParameterKey": "PublicSubnets", "ParameterValue": "subnet-05e017be984834212,subnet-052b71ae3fcc97b3a" },
+  { "ParameterKey": "PrivateSubnets", "ParameterValue": "subnet-05e017be984834212,subnet-052b71ae3fcc97b3a" },
+
+  { "ParameterKey": "ECRRepoName", "ParameterValue": "whatsapp-communication-service" },
+  { "ParameterKey": "ContainerPort", "ParameterValue": "3000" },
+  { "ParameterKey": "DesiredCount", "ParameterValue": "1" },
+
+  { "ParameterKey": "MongoUriParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/mongo-uri" },
+  { "ParameterKey": "MongoDatabaseParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/mongo-database" },
+  { "ParameterKey": "JwtSecretParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-secret" },
+  { "ParameterKey": "JwtServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-service-url" },
+  { "ParameterKey": "LogLevelParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/common/log-level" },
+  { "ParameterKey": "RedisUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/redis/url" },
+
+  { "ParameterKey": "EnableHttps", "ParameterValue": "false" },
+  { "ParameterKey": "RedirectHttpToHttps", "ParameterValue": "false" },
+  { "ParameterKey": "CertificateArn", "ParameterValue": "" },
+
+  { "ParameterKey": "ExecutionRoleArnParam", "ParameterValue": "arn:aws:iam::417132395312:role/ecsTaskExecutionRole" },
+  { "ParameterKey": "AwsRegionParam", "ParameterValue": "us-east-1" },
+  { "ParameterKey": "AwsS3BucketParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/aws/s3-bucket-name" },
+
+  { "ParameterKey": "AwsAccessKeyIdParam", "ParameterValue": "" },
+  { "ParameterKey": "AwsSecretAccessKeyParam", "ParameterValue": "" },
+
+  { "ParameterKey": "JwtAdminUserParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-admin-username" },
+  { "ParameterKey": "JwtAdminPassParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-admin-pass" }
+]

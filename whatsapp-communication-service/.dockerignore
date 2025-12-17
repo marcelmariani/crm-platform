@@ -1,0 +1,56 @@
+﻿# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Development
+node_modules/
+npm-debug.log
+yarn-error.log
+.env
+!.env.production.local
+
+# Testing
+tests/
+coverage/
+.nyc_output
+*.test.js
+jest.config.js
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+README.md
+CHANGELOG.md
+docs/
+
+# Misc
+logs/
+*.log
+dist/
+build/
+
+# Infrastructure
+infra/
+*.yml
+Dockerfile
+.dockerignore
+
+# Postman
+postman/
+
+# Data
+wa-sessions/
+auth/
+data/

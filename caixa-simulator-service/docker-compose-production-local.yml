@@ -1,0 +1,30 @@
+name: production-caixa-simulator-service
+
+services:
+  caixa-simulator-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: caixa-simulator-service:latest
+    network_mode: bridge
+    env_file:
+      - .env.production.local
+    container_name: caixa-simulator-service
+    restart: always
+    ports:
+      - "3101:3101"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3101/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+
+## Usar o bridge padrão simplifica DNS/NAT no Windows. Caso precise da rede
+## externa "smart-net", remova network_mode acima e descomente abaixo.
+# networks:
+#   smart-net:
+#     external: true

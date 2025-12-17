@@ -1,0 +1,18 @@
+[
+  { 
+    "ParameterKey": "AlbDnsName", 
+    "ParameterValue": "whatsapp-communication-alb-1364055043.us-east-1.elb.amazonaws.com"
+  },
+  { 
+    "ParameterKey": "StageName", 
+    "ParameterValue": "prod" 
+  },
+  { 
+    "ParameterKey": "ThrottlingBurstLimit", 
+    "ParameterValue": "5000" 
+  },
+  { 
+    "ParameterKey": "ThrottlingRateLimit", 
+    "ParameterValue": "2000" 
+  }
+]

@@ -1,0 +1,28 @@
+# bank-correspondent-service/docker-compose.yml
+services:
+  bank-correspondent-service:
+    container_name: bank-correspondent-service
+    build: .
+    image: bank-correspondent-service:latest
+    env_file:
+      - .env.staging        # todas as variáveis vêm daqui
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3002}
+    ports:
+      - "${PORT:-3002}:${PORT:-3002}"
+    networks:
+      smart-net:
+        aliases: [bank-correspondent-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3002}/health || curl -s http://localhost:${PORT:-3002}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+
+networks:
+  smart-net:
+    external: true

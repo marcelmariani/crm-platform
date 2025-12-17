@@ -1,0 +1,30 @@
+# sales-service/docker-compose.yml
+services:
+  sales-service:
+    container_name: sales-service
+    build: .
+    image: sales-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3007}
+      APP_RESOURCE_NAME: contact
+      # força a URL correta dentro da rede Docker
+      JWT_SERVICE_URL: https://auth-service:3000/v1
+    ports:
+      - "${PORT:-3007}:${PORT:-3007}"
+    networks:
+      smart-net:
+        aliases: [sales-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3007}/health || curl -s http://localhost:${PORT:-3007}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+networks:
+  smart-net:
+    external: true

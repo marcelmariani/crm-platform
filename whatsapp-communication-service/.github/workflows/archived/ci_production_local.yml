@@ -1,0 +1,171 @@
+name: Build Production Local
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy-production:
+    name: 🌐 Deploy to Production Local
+    # Só executa se o PR foi merged (não apenas fechado)
+    if: github.event.pull_request.merged == true
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+      - name: Checkout whatsapp-communication-service repo
+        uses: actions/checkout@v4
+
+      - name: Checkout infra-service
+        uses: actions/checkout@v4
+        with:
+          repository: SmartIA-Systems/infra-service
+          token: ${{ secrets.INFRA_SERVICE_PAT }}
+          ref: main
+          path: infra-service
+
+      - name: Prepare Docker network
+        shell: cmd
+        run: docker network inspect smart-net >nul 2>&1 || docker network create smart-net
+
+      - name: Docker Compose UP (production.local)
+        shell: cmd
+        run: docker-compose -f docker-compose-production-local.yml -f infra-service/docker-compose-infra.yml --env-file .env.production.local up -d --build --no-deps whatsapp-communication-service
+
+      - name: Check if whatsapp-communication-service container stays running for 5 seconds
+        shell: powershell
+        run: |
+          $container = "whatsapp-communication-service"
+          $ok = $true
+          for ($i = 1; $i -le 5; $i++) {
+            $status = docker inspect -f "{{.State.Status}}" $container 2>$null
+            if ($status -ne "running") {
+              Write-Host "::error ::O container $container parou antes de 5s! Status: $status"
+              Write-Host "Logs do container:"
+              docker logs $container
+              $ok = $false
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) {
+            exit 1
+          } else {
+            Write-Host "::notice ::O container $container permaneceu rodando por 10 segundos."
+          }
+
+      - name: Test health endpoint
+        if: false
+        run: |
+          endpoint="${{ steps.endpoint.outputs.API_ENDPOINT }}"
+          # Debug original endpoint
+          echo "Raw endpoint from stack: $endpoint"
+          # Normalize common corruption patterns:
+          # 1. Repeated 'amazonaws.com' -> collapse to single occurrence
+          # 2. Inserted 'comamazonaws.com' sequence -> fix to 'amazonaws.com'
+          endpoint=$(echo "$endpoint" | sed -E 's/(amazonaws\.com){2,}/amazonaws.com/' | sed -E 's/comamazonaws\.com/amazonaws.com/')
+          echo "Sanitized endpoint: $endpoint"
+          echo "Testing: $endpoint/v1/health"
+          response=$(curl -s -w "\n%{http_code}" "$endpoint/v1/health")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" != "200" ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Health check passed!"
+
+      - name: Comment PR with deployment info
+        if: false
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const endpoint = '${{ steps.endpoint.outputs.API_ENDPOINT }}';
+            const sha = context.sha.substring(0, 7);
+            const prNumber = context.payload.pull_request.number;
+            
+            const body = `## ✅ Successfully Deployed to Production
+            
+            **Environment:** AWS Lambda (HTTP API)
+            **Region:** us-east-1
+            **Stage:** production
+            **Commit:** ${sha}
+            
+            ### 🌐 API Endpoint
+            \`\`\`
+            ${endpoint}
+            \`\`\`
+            
+            ### 🧪 Quick Test
+            \`\`\`bash
+            # Health check
+            curl ${endpoint}/v1/health
+            
+            # Login example
+            curl -X POST ${endpoint}/v1/auth/login \\
+              -H "Content-Type: application/json" \\
+              -d '{"email":"admin@example.com","password":"your-password"}'
+            \`\`\`
+            
+            ### 📊 AWS Free Tier Status
+            - Lambda: 1M requests/month (permanent)
+            - HTTP API: 1M requests/month (12 months)
+            - CloudWatch Logs: 5GB ingestion, 5GB storage
+            
+            ---
+            _Deployed via GitHub Actions • [View logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body
+            });
+
+      - name: Deployment summary
+        if: false
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Endpoint:** ${{ steps.endpoint.outputs.API_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** us-east-1" >> $GITHUB_STEP_SUMMARY
+          echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SSM Parameters" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$MISSING_REQUIRED" ]; then
+            echo "- Missing required (non-blocking): $MISSING_REQUIRED" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_REQUIRED_DETAILS" ]; then
+              IFS=',' read -ra reqdet <<< "$MISSING_REQUIRED_DETAILS"
+              for entry in "${reqdet[@]}"; do
+                echo "  - $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          else
+            echo "- All required parameters present" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "$MISSING_OPTIONAL" ]; then
+            echo "- Missing optional: $MISSING_OPTIONAL" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$MISSING_OPTIONAL_DETAILS" ]; then
+              IFS=',' read -ra optdet <<< "$MISSING_OPTIONAL_DETAILS"
+              for entry in "${optdet[@]}"; do
+                echo "  - $entry" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Cost Optimization" >> $GITHUB_STEP_SUMMARY
+          echo "- Using HTTP API (cheaper than REST API)" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory: 512 MB (balanced cost/performance)" >> $GITHUB_STEP_SUMMARY
+          echo "- Log retention: 7 days" >> $GITHUB_STEP_SUMMARY
+          echo "- Free tier: 1M requests/month" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,300 @@
+name: Build Development -> Test -> Staging
+on:
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+    
+jobs:
+  check_version:
+    name: ❇️ Check branch version test 
+    runs-on: ubuntu-latest
+    outputs:
+      bumped: ${{ steps.determine.outputs.bumped }}
+    steps:
+      - name: Checkout test branch (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if version was bumped
+        id: determine
+        run: |
+          set -e
+          new_ver=$(jq -r .version < package.json)
+          echo "New version (current commit): $new_ver"
+
+          bumped="false"
+
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            old_ver=$(git show HEAD^:package.json | jq -r .version)
+            echo "Previous version (parent commit): $old_ver"
+
+            if [ "$new_ver" != "$old_ver" ] && [ "$(printf '%s\n%s\n' "$old_ver" "$new_ver" | sort -V | head -n1)" = "$old_ver" ]; then
+              echo "Version bump detected: $old_ver -> $new_ver"
+              bumped="true"
+            else
+              echo "No version bump detected"
+            fi
+          else
+            echo "No parent commit; treating as version bump."
+            bumped="true"
+          fi
+
+          echo "bumped=$bumped" >> $GITHUB_OUTPUT
+
+          if [ "$bumped" != "true" ]; then
+            echo "Aborting because no version bump."
+            exit 1
+          fi
+
+  test:
+    name: 🚧 Run tests & coverage
+    needs: check_version
+    if: needs.check_version.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tested_sha: ${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (CI)
+        run: npm ci
+
+      - name: Run tests with coverage (Jest)
+        run: npm run test:coverage
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: junit.xml
+          if-no-files-found: warn
+
+      - name: Upload coverage (lcov and summary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-jest
+          path: |
+            coverage-jest/lcov.info
+            coverage-jest/coverage-summary.json
+          if-no-files-found: warn
+
+      - name: Comment PR with test & coverage summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'coverage-jest/coverage-summary.json';
+            let lines = 'N/A', branches = 'N/A', funcs = 'N/A', stmts = 'N/A';
+            try {
+              const s = JSON.parse(fs.readFileSync(path, 'utf8'));
+              lines = s.total.lines.pct;
+              branches = s.total.branches.pct;
+              funcs = s.total.functions.pct;
+              stmts = s.total.statements.pct;
+            } catch (e) {
+              console.log('No coverage summary found:', e.message);
+            }
+            const body = [`✅ Jest results`,
+              `- Lines: ${lines}%`,
+              `- Branches: ${branches}%`,
+              `- Functions: ${funcs}%`,
+              `- Statements: ${stmts}%`,
+              `- Artifacts: junit-report, coverage-jest`].join('\n');
+            const { context } = require('@actions/github-script');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      # Infra-service desabilitado para teste de deploy
+
+      - name: Gate by coverage summary (redundant safety)
+        run: |
+          SUMMARY=coverage-jest/coverage-summary.json
+          if [ ! -f "$SUMMARY" ]; then
+            echo "coverage summary not found at $SUMMARY"
+            exit 1
+          fi
+          lines=$(jq -r '.total.lines.pct' "$SUMMARY")
+          branches=$(jq -r '.total.branches.pct' "$SUMMARY")
+          funcs=$(jq -r '.total.functions.pct' "$SUMMARY")
+          stmts=$(jq -r '.total.statements.pct' "$SUMMARY")
+          echo "Lines=$lines Branches=$branches Functions=$funcs Statements=$stmts"
+          awk "BEGIN {exit !($lines >= 80 && $branches >= 70 && $funcs >= 75 && $stmts >= 80)}" || {
+            echo "Coverage below thresholds";
+            exit 1;
+          }
+
+      - name: Gate by diff coverage (PR-only)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -e
+          BASE_SHA="${GITHUB_EVENT_BASE_SHA:-$(jq -r '.pull_request.base.sha' "$GITHUB_EVENT_PATH" 2>/dev/null || echo '')}"
+          HEAD_SHA="${GITHUB_EVENT_HEAD_SHA:-$(jq -r '.pull_request.head.sha' "$GITHUB_EVENT_PATH" 2>/dev/null || echo '')}"
+          echo "Base=$BASE_SHA Head=$HEAD_SHA"
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep '^src/' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed source files under src/. Skipping diff coverage gate."
+            exit 0
+          fi
+          FINAL=coverage-jest/coverage-final.json
+          if [ ! -f "$FINAL" ]; then
+            echo "coverage-final.json not found"; exit 1
+          fi
+          echo "Changed files:\n$CHANGED"
+          # Require per-file lines coverage >= 70% for changed JS files
+          THRESHOLD=70
+          FAIL=0
+          for f in $CHANGED; do
+            case "$f" in
+              *.js)
+                ;;
+              *)
+                continue
+                ;;
+            esac
+            # coverage-final.json keys use absolute paths; map to repo path
+            # Try both absolute and relative forms
+            pct=$(jq -r --arg k "$PWD/$f" '(.[$k].lines.pct // empty)' "$FINAL")
+            if [ -z "$pct" ] || [ "$pct" = "null" ]; then
+              pct=$(jq -r --arg k "$f" '(.[$k].lines.pct // empty)' "$FINAL")
+            fi
+            if [ -z "$pct" ] || [ "$pct" = "null" ]; then
+              echo "No coverage entry for $f (maybe untested)."; FAIL=1; continue
+            fi
+            echo "$f lines=$pct%"
+            awk "BEGIN {exit !($pct >= $THRESHOLD)}" || { echo "Below threshold: $f ($pct% < $THRESHOLD%)"; FAIL=1; }
+          done
+          if [ "$FAIL" -ne 0 ]; then
+            echo "Diff coverage gate failed"; exit 1
+          fi
+
+  staging:
+    name: 🚀 Build staging
+    runs-on: [self-hosted, Windows, X64]
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # Infra-service e compose desabilitados
+          
+  promote-to-main:
+    name: 🎯 Create PR Staging → Main
+    needs: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout auth-service
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync staging with test (fast-forward merge)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout staging
+          git merge --ff-only origin/test
+          git push origin staging
+
+      - name: Create or update PR from staging to main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const head = 'staging';
+            const base = 'main';
+            const title = `CI/CD - Build ${head} -> ${base}`;
+            const body = `Candidate promotion from \`${head}\` to \`${base}\` after successful staging deploy. SHA: ${{ github.sha }}`;
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${head}`,
+              base,
+              state: 'open',
+            });
+
+            let pr;
+            if (prs.length) {
+              pr = prs[0];
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                title,
+                body,
+              });
+            } else {
+              pr = (await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head,
+                base,
+                title,
+                body,
+                maintainer_can_modify: true,
+              })).data;
+            }
+
+            const labelName = 'candidate-for-production';
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName,
+              });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName,
+                color: 'b60205',
+                description: 'Prepared to promote to main/production',
+              });
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: [labelName],
+            });
+
+            // Enable auto-merge if branch protection allows
+            // Note: This requires "Allow auto-merge" to be enabled in repo settings
+            // and branch protection rules to be satisfied
+            try {
+              await github.rest.pulls.enableAutoMerge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                merge_method: 'merge', // or 'squash' or 'rebase'
+              });
+              console.log('✅ Auto-merge enabled for PR #' + pr.number);
+            } catch (error) {
+              console.log('⚠️ Could not enable auto-merge:', error.message);
+              console.log('This may require: 1) "Allow auto-merge" enabled in repo settings, 2) Branch protection satisfied, or 3) Manual approval');
+            }

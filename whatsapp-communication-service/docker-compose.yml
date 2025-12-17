@@ -1,0 +1,40 @@
+version: "3.8"
+services:
+  whatsapp:
+    image: ${ECR_REGISTRY}/whatsapp-communication-service:latest
+    container_name: whatsapp-communication-service
+    restart: always
+    ports:
+      - "3017:3017"
+    environment:
+      - NODE_ENV=production
+      - PORT=3017
+      - WA_SESSION_DIR=/data/wa-sessions
+      - LOG_LEVEL=${LOG_LEVEL}
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DATABASE=${MONGO_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - JWT_ADMIN_USERNAME=${JWT_ADMIN_USERNAME}
+      - JWT_ADMIN_PASS=${JWT_ADMIN_PASS}
+      - JWT_SERVICE_URL=${JWT_SERVICE_URL}
+      - JWT_LOGIN_PATH=${JWT_LOGIN_PATH}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - APP_IA_ADMIN_CONFIGURATION_SERVICE_URL=${APP_IA_ADMIN_CONFIGURATION_SERVICE_URL}
+      - APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL=${APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL}
+    volumes:
+      - /var/lib/whatsapp:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3017/v1/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# Example of dependent service (if added later)
+# another-service:
+#   image: some/image:tag
+#   depends_on:
+#     whatsapp:
+#       condition: service_healthy

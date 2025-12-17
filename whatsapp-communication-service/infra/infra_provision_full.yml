@@ -1,0 +1,188 @@
+name: Infra Provision Full Deploy
+
+concurrency:
+  group: infra_provision
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-production:
+    name: 🚀 Whatsapp Communication Service - Infra Provision - ECS Fargate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Validate parameters
+        run: |
+          [ -z "${{ secrets.ECS_VPC_ID }}" ] && echo "Missing ECS_VPC_ID" && exit 1 || echo "VPC OK"
+          [ -z "${{ secrets.ECS_PUBLIC_SUBNETS }}" ] && echo "Missing ECS_PUBLIC_SUBNETS" && exit 1 || echo "PUBLIC SUBNETS OK"
+          [ -z "${{ secrets.ECS_PRIVATE_SUBNETS }}" ] && echo "Missing ECS_PRIVATE_SUBNETS" && exit 1 || echo "PRIVATE SUBNETS OK"
+
+      - name: Validate CloudFormation template
+        run: aws cloudformation validate-template --template-body file://infra/ecs/stack.yml
+
+      - name: Check subnet Internet/NAT reachability
+        env:
+          PUBLIC_SUBNETS: ${{ secrets.ECS_PUBLIC_SUBNETS }}
+          PRIVATE_SUBNETS: ${{ secrets.ECS_PRIVATE_SUBNETS }}
+          # Note: GitHub Actions does not support defaulting secrets inline. We'll read the secret directly in the script using the environment file.
+        run: |
+          set -euo pipefail
+          # Ensure optional flag variable is defined even if secret is absent
+          ALLOW_PUBLIC_TASKS="${ALLOW_PUBLIC_TASKS:-}"
+          # Optional flag not used; tasks currently run on public subnets
+          echo "Checking public subnets for Internet Gateway routes..."
+          for SUB in $(echo "$PUBLIC_SUBNETS" | tr ',' ' '); do
+            RTB=$(aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=$SUB --query 'RouteTables[0].RouteTableId' --output text || echo "None")
+            if [ -z "$RTB" ] || [ "$RTB" = "None" ]; then
+              echo "Subnet $SUB has no explicit route table association; checking VPC main route table..."
+              # Try to find a route table associated with the VPC that has 'Main' association
+              VPC_ID=${{ secrets.ECS_VPC_ID }}
+              RTB=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC_ID --query 'RouteTables[?Associations[?Main==`true`]].RouteTableId' --output text || echo "None")
+            fi
+            if [ -z "$RTB" ] || [ "$RTB" = "None" ]; then
+              echo "WARNING: Could not resolve a route table for subnet $SUB"
+              continue
+            fi
+            IGW=$(aws ec2 describe-route-tables --route-table-ids $RTB --query 'RouteTables[0].Routes[?DestinationCidrBlock==`0.0.0.0/0`].GatewayId' --output text || echo "None")
+            echo "Subnet $SUB -> RouteTable $RTB -> IGW $IGW"
+            if [ -z "$IGW" ] || [ "$IGW" = "None" ]; then
+              echo "WARNING: Public subnet $SUB lacks 0.0.0.0/0 route to an Internet Gateway."
+            fi
+          done
+          echo "Checking private subnets for NAT Gateway routes..."
+          PRIVATE_OK=1
+          for SUB in $(echo "$PRIVATE_SUBNETS" | tr ',' ' '); do
+            RTB=$(aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=$SUB --query 'RouteTables[0].RouteTableId' --output text || echo "None")
+            if [ -z "$RTB" ] || [ "$RTB" = "None" ]; then
+              echo "Subnet $SUB has no explicit route table association; checking VPC main route table..."
+              VPC_ID=${{ secrets.ECS_VPC_ID }}
+              RTB=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC_ID --query 'RouteTables[?Associations[?Main==`true`]].RouteTableId' --output text || echo "None")
+            fi
+            if [ -z "$RTB" ] || [ "$RTB" = "None" ]; then
+              echo "WARNING: Could not resolve a route table for subnet $SUB"
+              continue
+            fi
+            NAT=$(aws ec2 describe-route-tables --route-table-ids $RTB --query 'RouteTables[0].Routes[?DestinationCidrBlock==`0.0.0.0/0`].NatGatewayId' --output text || echo "None")
+            echo "Subnet $SUB -> RouteTable $RTB -> NAT $NAT"
+            if [ -z "$NAT" ] || [ "$NAT" = "None" ]; then
+              echo "WARNING: Private subnet $SUB lacks 0.0.0.0/0 route to a NAT Gateway. Tasks may fail to pull images."
+              PRIVATE_OK=0
+            fi
+          done
+          echo "Subnet reachability check complete."
+          if [ "$PRIVATE_OK" -ne 1 ]; then
+            echo "NOTICE: Private subnets sem NAT detectadas. Prosseguindo com deploy (tasks estão configuradas para usar subnets públicas temporariamente)."
+          fi
+
+      - name: Wait / recover existing stack state
+        run: |
+          set -euo pipefail
+          STACK_NAME=whatsapp-communication-ecs
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].StackStatus" --output text)
+            echo "Current stack status: $STATUS"
+            ATTEMPTS=0
+            START_TS=$(date +%s)
+            while [[ "$STATUS" == *"_IN_PROGRESS" ]]; do
+              if (( ATTEMPTS >= 80 )); then
+                echo "Timeout waiting for stack to leave IN_PROGRESS (status=$STATUS)" >&2
+                exit 1
+              fi
+              # Show last 8 events every loop for visibility
+              echo "--- Recent events (tail) ---"
+              aws cloudformation describe-stack-events --stack-name "$STACK_NAME" \
+                --query 'StackEvents[0:8].[ResourceStatus,LogicalResourceId,ResourceType,ResourceStatusReason]' --output table || true
+              ELAPSED=$(( $(date +%s) - START_TS ))
+              echo "Elapsed: ${ELAPSED}s"
+              sleep 15
+              STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].StackStatus" --output text)
+              echo "Status: $STATUS"
+              ATTEMPTS=$((ATTEMPTS+1))
+            done
+            echo "Final pre-deploy status: $STATUS"
+            if [[ "$STATUS" == "CREATE_FAILED" || "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
+              echo "Deleting failed/rolled back stack before re-deploy..."
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
+              echo "Waiting for stack delete to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+              echo "Delete complete. Proceeding with fresh create."
+            fi
+          else
+            echo "Stack does not exist yet; will create new."
+          fi
+
+      - name: Deploy ECS stack (CloudFormation)
+        env:
+          VPC_ID: ${{ secrets.ECS_VPC_ID }}
+          PUBLIC_SUBNETS: ${{ secrets.ECS_PUBLIC_SUBNETS }}
+          PRIVATE_SUBNETS: ${{ secrets.ECS_PRIVATE_SUBNETS }}
+        run: |
+          aws cloudformation deploy \
+            --stack-name whatsapp-communication-ecs \
+            --template-file infra/ecs/stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              VpcId="$VPC_ID" \
+              PublicSubnets="$PUBLIC_SUBNETS" \
+              PrivateSubnets="$PRIVATE_SUBNETS" \
+              ECRRepoName="whatsapp-communication-service" \
+              ContainerPort="3017" \
+              DesiredCount="1"
+
+      - name: Wait for stack completion
+        run: |
+          aws cloudformation wait stack-create-complete --stack-name whatsapp-communication-ecs || \
+          aws cloudformation wait stack-update-complete --stack-name whatsapp-communication-ecs || true
+
+      - name: Wait for ECS service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster whatsapp-communication-cluster \
+            --services whatsapp-communication-service || true
+
+      - name: Output ALB DNS
+        run: |
+          DNS=$(aws cloudformation describe-stacks \
+            --stack-name whatsapp-communication-ecs \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNS'].OutputValue" \
+            --output text)
+          echo "ALB DNS: $DNS"
+          echo "## Infra Provisioned" >> $GITHUB_STEP_SUMMARY
+          echo "ALB DNS: http://$DNS" >> $GITHUB_STEP_SUMMARY
+          echo "Cluster: whatsapp-communication-cluster" >> $GITHUB_STEP_SUMMARY
+          echo "Service: whatsapp-communication-service" >> $GITHUB_STEP_SUMMARY
+          REGION="us-east-1"
+          echo "Console ECS: https://$REGION.console.aws.amazon.com/ecs/v2/clusters/whatsapp-communication-cluster/services/whatsapp-communication-service/health?region=$REGION" >> $GITHUB_STEP_SUMMARY
+          echo "Console ALB: https://$REGION.console.aws.amazon.com/ec2/home?region=$REGION#LoadBalancers:" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report ECS/Target Group health
+        run: |
+          set -euo pipefail
+          TG_ARN=$(aws cloudformation describe-stack-resources \
+            --stack-name whatsapp-communication-ecs \
+            --query "StackResources[?LogicalResourceId=='TargetGroup'].PhysicalResourceId" \
+            --output text)
+          echo "TargetGroup ARN: $TG_ARN"
+          echo "### ECS Service / TargetGroup Health" >> $GITHUB_STEP_SUMMARY
+          echo "TargetGroup ARN: $TG_ARN" >> $GITHUB_STEP_SUMMARY
+          aws ecs describe-services --cluster whatsapp-communication-cluster --services whatsapp-communication-service \
+            --query "services[0].[status,deployments]" --output table | tee /dev/stderr
+          echo "ECS Service status and deployments:" >> $GITHUB_STEP_SUMMARY
+          aws ecs describe-services --cluster whatsapp-communication-cluster --services whatsapp-communication-service \
+            --query "services[0].deployments[*].{id:id,status:status,desired:desiredCount,pending:pendingCount,running:runningCount,failed:failedTasks}" --output table >> $GITHUB_STEP_SUMMARY || true
+          echo "Target health:" >> $GITHUB_STEP_SUMMARY
+          aws elbv2 describe-target-health --target-group-arn "$TG_ARN" --output table >> $GITHUB_STEP_SUMMARY || true

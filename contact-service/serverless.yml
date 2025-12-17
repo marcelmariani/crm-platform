@@ -1,0 +1,208 @@
+service: contact-service
+
+frameworkVersion: '3'
+
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - Accept
+        - Origin
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowCredentials: false
+      maxAge: 300
+  environment:
+    # Runtime
+    NODE_ENV: ${env:NODE_ENV, 'production'}
+    APP_RESOURCE_NAME: ${env:APP_RESOURCE_NAME, ''}
+
+    # Common
+    LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
+
+    # MongoDB
+    MONGO_URI: ${env:MONGO_URI, ''}
+    MONGO_DATABASE: ${env:MONGO_DATABASE, ''}
+
+    # JWT / Auth
+    JWT_SECRET: ${env:JWT_SECRET, ''}
+    JWT_EXPIRES_IN: ${env:JWT_EXPIRES_IN, ''}
+    JWT_ADMIN_USERNAME: ${env:JWT_ADMIN_USERNAME, ''}
+    JWT_ADMIN_PASS: ${env:JWT_ADMIN_PASS, ''}
+    JWT_SERVICE_URL: ${env:JWT_SERVICE_URL, ''}
+    JWT_LOGIN_PATH: ${env:JWT_LOGIN_PATH, ''}
+
+    # Grants
+    AUTH_GRANTS_CHECK_METHOD: ${env:AUTH_GRANTS_CHECK_METHOD, ''}
+    AUTH_GRANTS_CHECK_PATH: ${env:AUTH_GRANTS_CHECK_PATH, ''}
+    AUTH_GRANTS_QUERY_GROUP_KEY: ${env:AUTH_GRANTS_QUERY_GROUP_KEY, ''}
+    AUTH_GRANTS_QUERY_RESOURCE_KEY: ${env:AUTH_GRANTS_QUERY_RESOURCE_KEY, ''}
+
+    # Redis
+    REDIS_URL: ${env:REDIS_URL, ''}
+    REDIS_PREFIX_CAIXA_SIMULATOR: ${env:REDIS_PREFIX_CAIXA_SIMULATOR, ''}
+    REDIS_PREFIX_SALES: ${env:REDIS_PREFIX_SALES, ''}
+    REDIS_QUEUE_ATTEMPTS: ${env:REDIS_QUEUE_ATTEMPTS, ''}
+    REDIS_QUEUE_BACKOFF_MS: ${env:REDIS_QUEUE_BACKOFF_MS, ''}
+    REDIS_QUEUE_DLQ_CONTRACT: ${env:REDIS_QUEUE_DLQ_CONTRACT, ''}
+    REDIS_QUEUE_DLQ_PROPOSAL: ${env:REDIS_QUEUE_DLQ_PROPOSAL, ''}
+    REDIS_QUEUE_ENABLED: ${env:REDIS_QUEUE_ENABLED, ''}
+    REDIS_QUEUE_NAME_CAIXA_SIMULATOR: ${env:REDIS_QUEUE_NAME_CAIXA_SIMULATOR, ''}
+    REDIS_QUEUE_NAME_SALES: ${env:REDIS_QUEUE_NAME_SALES, ''}
+    REDIS_WORKERS_SIMULTANEOUS: ${env:REDIS_WORKERS_SIMULTANEOUS, ''}
+
+    # Email
+    MAIL_FROM: ${env:MAIL_FROM, ''}
+    NOTIFICATIONS_FALLBACK_TO: ${env:NOTIFICATIONS_FALLBACK_TO, ''}
+    SMTP_HOST: ${env:SMTP_HOST, ''}
+    SMTP_PORT: ${env:SMTP_PORT, ''}
+    SMTP_USER: ${env:SMTP_USER, ''}
+    SMTP_PASS: ${env:SMTP_PASS, ''}
+    SMTP_SECURE: ${env:SMTP_SECURE, ''}
+    SMTP_TLS_REJECT_UNAUTHORIZED: ${env:SMTP_TLS_REJECT_UNAUTHORIZED, ''}
+
+    # AWS (evite expor chaves; ideal usar IAM role)
+    AWS_REGION_: ${env:AWS_REGION_, 'us-east-1'}
+    AWS_S3_BUCKET_NAME: ${env:AWS_S3_BUCKET_NAME, ''}
+
+    # Puppeteer
+    PUPPETEER_DEVTOOLS: ${env:PUPPETEER_DEVTOOLS, ''}
+    PUPPETEER_HEADLESS: ${env:PUPPETEER_HEADLESS, ''}
+    PUPPETEER_KEEP_OPEN_ON_ERROR: ${env:PUPPETEER_KEEP_OPEN_ON_ERROR, ''}
+    PUPPETEER_KEEP_OPEN_ON_SUCCESS: ${env:PUPPETEER_KEEP_OPEN_ON_SUCCESS, ''}
+    PUPPETEER_SLOWMO: ${env:PUPPETEER_SLOWMO, ''}
+
+    # OpenAI
+    OPENAI_MODEL: ${env:OPENAI_MODEL, ''}
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY, ''}
+
+    # Application Service URLs
+    APP_APP_AGENT_SERVICE_URL: ${env:APP_APP_AGENT_SERVICE_URL, ''}
+    APP_APP_BANK_CORRESPONDENT_SERVICE_URL: ${env:APP_APP_BANK_CORRESPONDENT_SERVICE_URL, ''}
+    APP_BANK_SERVICE_URL: ${env:APP_BANK_SERVICE_URL, ''}
+    APP_CAIXA_SIMULATOR_SERVICE_URL: ${env:APP_CAIXA_SIMULATOR_SERVICE_URL, ''}
+    APP_CONTACT_SERVICE_URL: ${env:APP_CONTACT_SERVICE_URL, ''}
+    APP_CONTRACT_SERVICE_URL: ${env:APP_CONTRACT_SERVICE_URL, ''}
+    APP_IA_ADMIN_CONFIGURATION_SERVICE_URL: ${env:APP_IA_ADMIN_CONFIGURATION_SERVICE_URL, ''}
+    APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL: ${env:APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL, ''}
+    APP_PRODUCT_SERVICE_URL: ${env:APP_PRODUCT_SERVICE_URL, ''}
+    APP_REAL_ESTATE_SERVICE_URL: ${env:APP_REAL_ESTATE_SERVICE_URL, ''}
+    APP_SALES_SERVICE_URL: ${env:APP_SALES_SERVICE_URL, ''}
+    APP_SELLER_SERVICE_URL: ${env:APP_SELLER_SERVICE_URL, ''}
+    APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL: ${env:APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL, ''}
+    APP_WHATSAPP_SERVICE_URL: ${env:APP_WHATSAPP_SERVICE_URL, ''}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:${aws:region}:${aws:accountId}:parameter/smartia/${self:provider.stage}/*
+        - Effect: Allow
+          Action:
+            - kms:Decrypt
+          Resource: '*' # ajuste para chave específica se necessário
+
+  # Log retention (7 dias para economizar)
+  logRetentionInDays: 7
+
+functions:
+  api:
+    handler: lambda.handler
+    description: Contact Service API - ${self:provider.stage}
+    memorySize: 512  # MB - balanced cost/performance
+    timeout: 30      # segundos - tempo máximo de execução
+
+    # Provisionamento (deixe comentado no free tier)
+    # reservedConcurrency: 5  # Limita concorrência
+
+    # VPC Configuration (descomente se precisar IPs fixos para MongoDB Atlas)
+    # vpc:
+    #   securityGroupIds:
+    #     - sg-xxxxxxxxx  # Security Group com saída permitida
+    #   subnetIds:
+    #     - subnet-xxxxxxxx  # Private subnet com NAT Gateway
+    #     - subnet-yyyyyyy
+
+    events:
+      # HTTP API (mais barato que REST API)
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+      - httpApi:
+          path: /
+          method: ANY
+
+# Plugins
+plugins:
+  - serverless-offline
+  - serverless-prune-plugin
+
+# Configurações extras
+custom:
+  # Remove logs antigos automaticamente
+  prune:
+    automatic: true
+    number: 3
+
+  # Para testes locais
+  serverless-offline:
+    httpPort: 3000
+    noPrependStageInUrl: true
+
+# Empacotamento otimizado
+package:
+  individually: false
+  patterns:
+    - '!.git/**'
+    - '!.github/**'
+    - '!node_modules/.cache/**'
+    - '!tests/**'
+    - '!coverage/**'
+    - '!*.md'
+    - '!docker-compose*.yml'
+    - '!Dockerfile'
+    - '!infra-service/**'
+    - '!certs/**'
+    - '!logs/**'
+    - '!postman/**'
+    - '!.env*'
+    - '!vitest.config.js'
+    - '!eslint.config.js'
+
+# CloudFormation Outputs to easily fetch endpoint in CI
+resources:
+  Outputs:
+    HttpApiId:
+      Description: HTTP API ID
+      Value:
+        Ref: HttpApi
+    HttpApiUrl:
+      Description: Base URL for HTTP API default stage
+      Value:
+        Fn::Join:
+          - ''
+          - - 'https://'
+            - Ref: HttpApi
+            - '.execute-api.'
+            - Ref: AWS::Region
+            - '.amazonaws.com'

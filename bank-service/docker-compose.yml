@@ -1,0 +1,30 @@
+# bank-service/docker-compose.yml
+services:
+  bank-service:
+    container_name: bank-service
+    build: .
+    image: bank-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3001}
+      APP_RESOURCE_NAME: bank
+      # força a URL correta dentro da rede Docker
+      JWT_AUTH_SERVICE_URL: https://auth-service:3000/v1
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"
+    networks:
+      smart-net:
+        aliases: [bank-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3001}/health || curl -s http://localhost:${PORT:-3001}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+networks:
+  smart-net:
+    external: true

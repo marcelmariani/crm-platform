@@ -1,0 +1,124 @@
+name: Deploy ECS (CloudFormation)
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS Region
+        required: true
+        default: us-east-1
+      stack_name:
+        description: CloudFormation Stack Name
+        required: true
+        default: whatsapp-communication-ecs
+      vpc_id:
+        description: VPC ID (ex. vpc-xxxxxxxx)
+        required: true
+      public_subnets:
+        description: Public Subnet IDs (comma-separated)
+        required: true
+      private_subnets:
+        description: Private Subnet IDs (comma-separated)
+        required: false
+        default: ""
+      ecr_repo_name:
+        description: ECR Repository Name
+        required: true
+        default: whatsapp-communication-service
+      container_port:
+        description: Container Port
+        required: true
+        default: "3017"
+      desired_count:
+        description: Desired task count (0 = infra apenas)
+        required: true
+        default: "1"
+      mongo_uri_param:
+        description: SSM parameter name/ARN for Mongo URI
+        required: true
+      mongo_database:
+        description: Legacy direct value for MongoDB database name
+        required: false
+        default: ""
+      mongo_database_param:
+        description: SSM parameter name/ARN for MongoDB database name
+        required: true
+      jwt_secret_param:
+        description: SSM parameter name/ARN for JWT secret
+        required: true
+      jwt_service_url_param:
+        description: SSM parameter name/ARN for Auth service base URL
+        required: true
+      log_level_param:
+        description: SSM parameter name/ARN for Logger level
+        required: true
+      redis_url_param:
+        description: SSM parameter name/ARN for Redis URL (optional)
+        required: false
+        default: ""
+
+env:
+  TEMPLATE_PATH: infra/ecs/stack.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: CloudFormation Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (Static Keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Validate template
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation validate-template --template-body file://"${TEMPLATE_PATH}"
+
+      - name: Deploy stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          PARAMS=(
+            VpcId=${{ inputs.vpc_id }}
+            PublicSubnets=${{ inputs.public_subnets }}
+            ECRRepoName=${{ inputs.ecr_repo_name }}
+            ContainerPort=${{ inputs.container_port }}
+            DesiredCount=${{ inputs.desired_count }}
+            MongoUriParam='${{ inputs.mongo_uri_param }}'
+            MongoDatabase='${{ inputs.mongo_database }}'
+            MongoDatabaseParam='${{ inputs.mongo_database_param }}'
+            JwtSecretParam='${{ inputs.jwt_secret_param }}'
+            JwtServiceUrlParam='${{ inputs.jwt_service_url_param }}'
+            LogLevelParam='${{ inputs.log_level_param }}'
+            RedisUrlParam='${{ inputs.redis_url_param }}'
+          )
+          # Include PrivateSubnets only if provided (non-empty)
+          if [ -n "${{ inputs.private_subnets }}" ]; then
+            PARAMS+=(PrivateSubnets=${{ inputs.private_subnets }})
+          else
+            # Pass an empty string to satisfy the parameter when needed
+            PARAMS+=(PrivateSubnets="")
+          fi
+
+          aws cloudformation deploy \
+            --stack-name "${{ inputs.stack_name }}" \
+            --template-file "${TEMPLATE_PATH}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides "${PARAMS[@]}"
+
+      - name: Show outputs
+        shell: bash
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "${{ inputs.stack_name }}" \
+            --query 'Stacks[0].Outputs'

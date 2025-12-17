@@ -1,0 +1,169 @@
+# Root-only folders to exclude from repo
+/_backups/
+/tools/
+/frontend/
+/infra-service/
+**/certs/
+**/scripts/
+
+# Secrets and environment files (keep only examples)
+.env
+.env.*
+**/.env
+**/.env.*
+# allow only example variants
+!*.env.example
+!**/.env.example
+!**/.env.*.example
+
+# Private keys and certificates
+id_rsa
+id_ecdsa
+id_ed25519
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.csr
+*.keystore
+*.jks
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node/JavaScript/TypeScript artifacts
+node_modules/
+**/node_modules/
+dist/
+build/
+out/
+coverage/
+.cache/
+.eslintcache
+*.tsbuildinfo
+.turbo/
+.next/
+.nuxt/
+.vite/
+.parcel-cache/
+
+# Package manager stores
+.pnpm-store/
+.npm/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Python (if any service uses it)
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+
+# Java/Gradle (if any service uses it)
+target/
+.gradle/
+.classpath
+.project
+.settings/
+build/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE/editor
+.vscode/
+.idea/
+*.iml
+
+# Test artifacts and runtime outputs
+test-results/
+reports/
+screenshots/
+
+# Docker/local runtime
+docker-data/
+volumes/
+tmp/
+temp/
+*.pid
+*.pid.lock
+*.seed
+
+# App-specific managed artifacts (from previous rules)
+**.data.json
+**.node-persist**
+**_IGNORE_**
+
+# WhatsApp Baileys session/auth (do not commit)
+**/.baileys/
+**/baileys_store/
+**/auth_info*
+**/creds.json
+**/session-*.json
+**/qr.png
+**/qr.svg
+
+# Certificates and scripts directories (ignore across monorepo)
+**/certs/
+**/scripts/
+
+# WhatsApp sessions and documentation (ignore across monorepo)
+**/wa-sessions/
+**/docs/
+
+# Do not track per-service .gitignore files; keep only root
+**/.gitignore
+!/.gitignore
+# Node
+node_modules/
+coverage/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+#app
+.env.production
+
+# Env
+.env
+
+# Screenshots (JSON/JPG gerados em runtime)
+screenshots/
+
+# Logs
+logs/
+
+# Tests
+coverage/
+
+# VSCode
+.vscode/
+
+# managed
+**.data.json
+**.node-persist**
+**_IGNORE_**
+# end managed
+
+# Ignore internal Git repositories
+**/.git/

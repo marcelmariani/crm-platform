@@ -1,0 +1,33 @@
+# agent-service/docker-compose.yml
+services:
+  agent-service:
+    container_name: agent-service
+    build: .
+    image: agent-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3004}
+      #APP_RESOURCE_NAME: agent
+      # força a URL correta dentro da rede Docker
+      JWT_SERVICE_URL: https://auth-service:3000/v1
+      APP_BANK_CORRESPONDENT_SERVICE_URL: https://bank-correspondent-service:3002/v1 # linked pai imediato
+      APP_REAL_ESTATE_SERVICE_URL: https://real-estate-service:3003/v1  # pai imediato
+    ports:
+      - "${PORT:-3004}:${PORT:-3004}"
+    networks:
+      smart-net:
+        aliases: [agent-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3004}/health || curl -s http://localhost:${PORT:-3004}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+
+networks:
+  smart-net:
+    external: true

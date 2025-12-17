@@ -1,0 +1,30 @@
+# ia-customer-configuration-service/docker-compose.yml
+services:
+  ia-customer-configuration-service:
+    container_name: ia-customer-configuration-service
+    build: .
+    image: ia-customer-configuration-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3014}
+      #APP_RESOURCE_NAME: ia-customer-configuration
+      # força a URL correta dentro da rede Docker
+      JWT_SERVICE_URL: https://auth-service:3000/v1
+    ports:
+      - "${PORT:-3014}:${PORT:-3014}"
+    networks:
+      smart-net:
+        aliases: [ia-customer-configuration-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3014}/health || curl -s http://localhost:${PORT:-3014}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+networks:
+  smart-net:
+    external: true

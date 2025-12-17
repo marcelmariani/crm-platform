@@ -1,0 +1,30 @@
+# contract-service/docker-compose.yml
+services:
+  contract-service:
+    container_name: contract-service
+    build: .
+    image: contract-service:latest
+    env_file:
+      - .env.staging
+    environment:
+      NODE_ENV: ${NODE_ENV:-staging}
+      PORT: ${PORT:-3011}
+      APP_RESOURCE_NAME: contact
+      # força a URL correta dentro da rede Docker
+      JWT_SERVICE_URL: https://auth-service:3000/v1
+    ports:
+      - "${PORT:-3011}:${PORT:-3011}"
+    networks:
+      smart-net:
+        aliases: [contract-service]
+    healthcheck:
+      test: ["CMD-SHELL","curl -ks https://localhost:${PORT:-3011}/health || curl -s http://localhost:${PORT:-3011}/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+networks:
+  smart-net:
+    external: true

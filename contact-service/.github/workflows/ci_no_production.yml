@@ -1,0 +1,307 @@
+name: Build Development -> Test -> Staging
+on:
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+    
+jobs:
+  check_version:
+    name: ❇️ Check branch version test 
+    runs-on: ubuntu-latest
+    outputs:
+      bumped: ${{ steps.determine.outputs.bumped }}
+    steps:
+      - name: Checkout test branch (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if version was bumped
+        id: determine
+        run: |
+          set -e
+          new_ver=$(jq -r .version < package.json)
+          echo "New version (current commit): $new_ver"
+
+          bumped="false"
+
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            old_ver=$(git show HEAD^:package.json | jq -r .version)
+            echo "Previous version (parent commit): $old_ver"
+
+            if [ "$new_ver" != "$old_ver" ] && [ "$(printf '%s\n%s\n' "$old_ver" "$new_ver" | sort -V | head -n1)" = "$old_ver" ]; then
+              echo "Version bump detected: $old_ver -> $new_ver"
+              bumped="true"
+            else
+              echo "No version bump detected"
+            fi
+          else
+            echo "No parent commit; treating as version bump."
+            bumped="true"
+          fi
+
+          echo "bumped=$bumped" >> $GITHUB_OUTPUT
+
+          if [ "$bumped" != "true" ]; then
+            echo "Aborting because no version bump."
+            exit 1
+          fi
+
+  test:
+    name: 🚧 Run tests & coverage
+    needs: check_version
+    if: needs.check_version.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tested_sha: ${{ github.sha }}
+    steps:
+      - name: Checkout contact-service
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout infra-service
+        uses: actions/checkout@v4
+        with:
+          repository: SmartIA-Systems/infra-service
+          token: ${{ secrets.INFRA_SERVICE_PAT }}
+          path: infra-service
+
+      - name: Ensure docker network
+        run: |
+          docker network inspect smart-net >/dev/null 2>&1 || docker network create smart-net
+
+      - name: Build and bring up services
+        if: false
+        run: |
+          docker compose \
+            -f docker-compose.yml \
+            -f infra-service/docker-compose-infra.yml \
+            up -d --build
+
+      - name: Resolve contact-service container
+        if: false
+        run: |
+          CONTAINER=$(docker compose ps -q contact-service)
+          if [ -z "$CONTAINER" ]; then
+            echo "contact-service container not found"
+            docker compose ps
+            exit 1
+          fi
+          echo "Found container: $CONTAINER"
+          echo "CONTAINER=$CONTAINER" >> $GITHUB_ENV
+
+      - name: Run lint inside contact-service container
+        if: false
+        run: |
+          if [ -z "${CONTAINER}" ]; then
+            echo "CONTAINER env var not set"
+            exit 1
+          fi
+          docker exec "${CONTAINER}" sh -c "npm run lint"
+
+      - name: Run tests inside contact-service container
+        if: false
+        run: |
+          if [ -z "${CONTAINER}" ]; then
+            echo "CONTAINER env var not set"
+            exit 1
+          fi
+          docker exec "${CONTAINER}" sh -c "npm test"
+
+      - name: Copy coverage from container to host
+        if: false
+        run: |
+          if [ -z "${CONTAINER}" ]; then
+            echo "CONTAINER env var not set for coverage copy"
+            exit 1
+          fi
+          mkdir -p coverage
+          if docker cp "${CONTAINER}":/usr/src/app/coverage ./coverage 2>/dev/null; then
+            echo "Copied coverage from /usr/src/app/coverage"
+          elif docker cp "${CONTAINER}":/coverage ./coverage 2>/dev/null; then
+            echo "Copied coverage from /coverage"
+          elif docker cp "${CONTAINER}":/app/coverage ./coverage 2>/dev/null; then
+            echo "Copied coverage from /app/coverage"
+          else
+            echo "Coverage directory not found inside container; dumping tree for debug:"
+            docker exec "${CONTAINER}" sh -c "ls -R . | head -200"
+            echo "coverage_not_found" > coverage/MISSING
+          fi
+
+      - name: Check coverage >= 10%
+        if: false
+        id: coverage_check
+        continue-on-error: true
+        run: |
+          if [ ! -f coverage/coverage-summary.json ]; then
+            echo "⚠️ coverage-summary.json not found; skipping coverage gate."
+            echo "passed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          lines=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "Lines coverage: $lines%"
+
+          if awk "BEGIN {exit !($lines >= 10)}"; then
+            echo "✅ Coverage threshold met: ${lines}% >= 10%"
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Coverage threshold not met: ${lines}% < 10%"
+            echo "passed=false" >> $GITHUB_OUTPUT
+          fi
+
+  staging:
+    name: 🚀 Build staging
+    runs-on: [self-hosted, Windows, X64]
+    needs: test
+    steps:
+      - name: Checkout contact-service repo
+        uses: actions/checkout@v4
+
+      - name: Checkout infra-service
+        uses: actions/checkout@v4
+        with:
+          repository: SmartIA-Systems/infra-service
+          token: ${{ secrets.INFRA_SERVICE_PAT }}
+          ref: main
+          path: infra-service
+
+      - name: Prepare Docker network
+        shell: cmd
+        run: docker network inspect smart-net >nul 2>&1 || docker network create smart-net
+
+      - name: Docker Compose UP (staging)
+        if: false
+        shell: cmd
+        run: docker-compose -f docker-compose.yml -f infra-service/docker-compose-infra.yml --env-file .env.staging up -d --build --no-deps contact-service
+
+      - name: Check if contact-service container stays running for 5 seconds
+        if: false
+        shell: powershell
+        run: |
+          $container = "contact-service"
+          $ok = $true
+          for ($i = 1; $i -le 5; $i++) {
+            $status = docker inspect -f "{{.State.Status}}" $container 2>$null
+            if ($status -ne "running") {
+              Write-Host "::error ::O container $container parou antes de 5s! Status: $status"
+              Write-Host "Logs do container:"
+              docker logs $container
+              $ok = $false
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) {
+            exit 1
+          } else {
+            Write-Host "::notice ::O container $container permaneceu rodando por 10 segundos."
+          }
+          
+  promote-to-main:
+    name: 🎯 Create PR Staging → Main
+    needs: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout contact-service
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync staging with test (fast-forward merge)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout staging
+          git merge --ff-only origin/test
+          git push origin staging
+
+      - name: Create or update PR from staging to main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const head = 'staging';
+            const base = 'main';
+            const title = `CI/CD - Build ${head} -> ${base}`;
+            const body = `Candidate promotion from \`${head}\` to \`${base}\` after successful staging deploy. SHA: ${{ github.sha }}`;
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${head}`,
+              base,
+              state: 'open',
+            });
+
+            let pr;
+            if (prs.length) {
+              pr = prs[0];
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                title,
+                body,
+              });
+            } else {
+              pr = (await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head,
+                base,
+                title,
+                body,
+                maintainer_can_modify: true,
+              })).data;
+            }
+
+            const labelName = 'candidate-for-production';
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName,
+              });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: labelName,
+                color: 'b60205',
+                description: 'Prepared to promote to main/production',
+              });
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: [labelName],
+            });
+
+            // Enable auto-merge if branch protection allows
+            // Note: This requires "Allow auto-merge" to be enabled in repo settings
+            // and branch protection rules to be satisfied
+            try {
+              await github.rest.pulls.enableAutoMerge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                merge_method: 'merge', // or 'squash' or 'rebase'
+              });
+              console.log('✅ Auto-merge enabled for PR #' + pr.number);
+            } catch (error) {
+              console.log('⚠️ Could not enable auto-merge:', error.message);
+              console.log('This may require: 1) "Allow auto-merge" enabled in repo settings, 2) Branch protection satisfied, or 3) Manual approval');
+            }

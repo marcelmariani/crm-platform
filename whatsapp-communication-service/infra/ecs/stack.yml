@@ -1,0 +1,487 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WhatsApp Communication Service - ECS Fargate Stack
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Public subnet IDs for ALB
+  PrivateSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnet IDs for ECS tasks (temporariamente não utilizados enquanto usamos públicas)
+  ECRRepoName:
+    Type: String
+    Default: whatsapp-communication-service
+  ContainerPort:
+    Type: Number
+    Default: 3000
+  DesiredCount:
+    Type: Number
+    Default: 1
+  CertificateArn:
+    Type: String
+    Description: ACM certificate ARN for HTTPS listener
+    Default: ""
+  EnableHttps:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Enable HTTPS listener on ALB (443)
+  RedirectHttpToHttps:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Redirect HTTP (80) to HTTPS (443)
+  MongoUriParam:
+    Type: String
+    Description: SSM Parameter name or ARN for MongoDB connection string
+    Default: ""
+  MongoDatabase:
+    Type: String
+    Description: MongoDB database name
+    Default: ""
+  MongoDatabaseParam:
+    Type: String
+    Description: SSM Parameter name/ARN for MongoDB database name
+    Default: ""
+  JwtSecretParam:
+    Type: String
+    Description: SSM Parameter name or ARN for JWT secret
+    Default: ""
+  JwtServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Auth service base URL
+    Default: ""
+  LogLevelParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Logger level
+    Default: ""
+  RedisUrlParam:
+    Type: String
+    Description: SSM Parameter name or ARN for Redis URL (optional)
+    Default: ""
+  ExecutionRoleArnParam:
+    Type: String
+    Description: Optional ARN of an existing ECS Task Execution Role (e.g., ecsTaskExecutionRole). If empty, stack-created role is used.
+    Default: ""
+  AwsRegionParam:
+    Type: String
+    Description: AWS region for S3 client (e.g., us-east-1)
+    Default: "us-east-1"
+  AwsS3BucketParam:
+    Type: String
+    Description: Optional default S3 bucket name (used by awsS3.service)
+    Default: ""
+  AwsAccessKeyIdParam:
+    Type: String
+    Description: SSM Parameter name/ARN for AWS_ACCESS_KEY_ID
+    Default: ""
+  AwsSecretAccessKeyParam:
+    Type: String
+    Description: SSM Parameter name/ARN for AWS_SECRET_ACCESS_KEY
+    Default: ""
+  JwtAdminUserParam:
+    Type: String
+    Description: SSM Parameter name/ARN for JWT_ADMIN_USERNAME (optional)
+    Default: ""
+  JwtAdminPassParam:
+    Type: String
+    Description: SSM Parameter name/ARN for JWT_ADMIN_PASS (optional)
+    Default: ""
+  OpenAiApiKeyParam:
+    Type: String
+    Description: SSM Parameter name/ARN for OpenAI API Key
+    Default: ""
+  OpenAiModelParam:
+    Type: String
+    Description: SSM Parameter name/ARN for OpenAI Model
+    Default: ""
+  AppResourceNameParam:
+    Type: String
+    Description: SSM Parameter name/ARN for APP_RESOURCE_NAME
+    Default: ""
+  AppAgentServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Agent Service URL
+    Default: ""
+  AppBankServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Bank Service URL
+    Default: ""
+  AppBankCorrespondentServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Bank Correspondent Service URL
+    Default: ""
+  AppRealEstateServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Real Estate Service URL
+    Default: ""
+  AppIaAdminConfigServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for IA Admin Configuration Service URL
+    Default: ""
+  AppIaCustomerConfigServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for IA Customer Configuration Service URL
+    Default: ""
+  AppCaixaSimulatorServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Caixa Simulator Service URL
+    Default: ""
+  AppWhatsappServiceCaixaSimulatorWebhookUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for WhatsApp Service Caixa Simulator Webhook URL
+    Default: ""
+  AppContactServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Contact Service URL
+    Default: ""
+  AppSalesServiceUrlParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Sales Service URL
+    Default: ""
+  ProposalProductMapParam:
+    Type: String
+    Description: SSM Parameter name/ARN for Proposal Product Map JSON
+    Default: ""
+
+Conditions:
+  HasRedisUrlParam: !Not [ !Equals [ !Ref RedisUrlParam, "" ] ]
+  HasCertificate: !Not [ !Equals [ !Ref CertificateArn, "" ] ]
+  UseHttps: !Equals [ !Ref EnableHttps, "true" ]
+  DoRedirect: !Equals [ !Ref RedirectHttpToHttps, "true" ]
+  HasExecutionRoleParam: !Not [ !Equals [ !Ref ExecutionRoleArnParam, "" ] ]
+  HasAwsS3BucketParam: !Not [ !Equals [ !Ref AwsS3BucketParam, "" ] ]
+  HasJwtAdminUserParam: !Not [ !Equals [ !Ref JwtAdminUserParam, "" ] ]
+  HasJwtAdminPassParam: !Not [ !Equals [ !Ref JwtAdminPassParam, "" ] ]
+  HasAwsAccessKeyIdParam: !Not [ !Equals [ !Ref AwsAccessKeyIdParam, "" ] ]
+  HasAwsSecretAccessKeyParam: !Not [ !Equals [ !Ref AwsSecretAccessKeyParam, "" ] ]
+  HasOpenAiApiKeyParam: !Not [ !Equals [ !Ref OpenAiApiKeyParam, "" ] ]
+  HasOpenAiModelParam: !Not [ !Equals [ !Ref OpenAiModelParam, "" ] ]
+  HasAppResourceNameParam: !Not [ !Equals [ !Ref AppResourceNameParam, "" ] ]
+  HasAppAgentServiceUrlParam: !Not [ !Equals [ !Ref AppAgentServiceUrlParam, "" ] ]
+  HasAppBankServiceUrlParam: !Not [ !Equals [ !Ref AppBankServiceUrlParam, "" ] ]
+  HasAppBankCorrespondentServiceUrlParam: !Not [ !Equals [ !Ref AppBankCorrespondentServiceUrlParam, "" ] ]
+  HasAppRealEstateServiceUrlParam: !Not [ !Equals [ !Ref AppRealEstateServiceUrlParam, "" ] ]
+  HasAppIaAdminConfigServiceUrlParam: !Not [ !Equals [ !Ref AppIaAdminConfigServiceUrlParam, "" ] ]
+  HasAppIaCustomerConfigServiceUrlParam: !Not [ !Equals [ !Ref AppIaCustomerConfigServiceUrlParam, "" ] ]
+  HasAppCaixaSimulatorServiceUrlParam: !Not [ !Equals [ !Ref AppCaixaSimulatorServiceUrlParam, "" ] ]
+  HasAppWhatsappServiceCaixaSimulatorWebhookUrlParam: !Not [ !Equals [ !Ref AppWhatsappServiceCaixaSimulatorWebhookUrlParam, "" ] ]
+  HasAppContactServiceUrlParam: !Not [ !Equals [ !Ref AppContactServiceUrlParam, "" ] ]
+  HasAppSalesServiceUrlParam: !Not [ !Equals [ !Ref AppSalesServiceUrlParam, "" ] ]
+  HasProposalProductMapParam: !Not [ !Equals [ !Ref ProposalProductMapParam, "" ] ]
+
+Resources:
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: whatsapp-communication-cluster
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SsmParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: '*'
+
+  TaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/whatsapp-communication-service
+      RetentionInDays: 7
+
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: whatsapp-communication-service
+      Cpu: '512'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !If [ HasExecutionRoleParam, !Ref ExecutionRoleArnParam, !GetAtt TaskExecutionRole.Arn ]
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:latest'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: !Sub '${ContainerPort}'
+            - Name: WA_SESSION_DIR
+              Value: /data/wa-sessions
+            - Name: AWS_REGION
+              Value: !Ref AwsRegionParam
+            - !If
+              - HasAwsS3BucketParam
+              - Name: AWS_S3_BUCKET
+                Value: !Ref AwsS3BucketParam
+              - !Ref 'AWS::NoValue'
+          Secrets:
+            - Name: MONGO_URI
+              ValueFrom: !Ref MongoUriParam
+            - Name: MONGO_DATABASE
+              ValueFrom: !Ref MongoDatabaseParam
+            - Name: JWT_SECRET
+              ValueFrom: !Ref JwtSecretParam
+            - Name: JWT_SERVICE_URL
+              ValueFrom: !Ref JwtServiceUrlParam
+            - Name: LOG_LEVEL
+              ValueFrom: !Ref LogLevelParam
+            - !If
+              - HasAwsAccessKeyIdParam
+              - Name: AWS_ACCESS_KEY_ID
+                ValueFrom: !Ref AwsAccessKeyIdParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAwsSecretAccessKeyParam
+              - Name: AWS_SECRET_ACCESS_KEY
+                ValueFrom: !Ref AwsSecretAccessKeyParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasJwtAdminUserParam
+              - Name: JWT_ADMIN_USERNAME
+                ValueFrom: !Ref JwtAdminUserParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasJwtAdminPassParam
+              - Name: JWT_ADMIN_PASS
+                ValueFrom: !Ref JwtAdminPassParam
+              - !Ref 'AWS::NoValue'
+            - !If 
+              - HasRedisUrlParam
+              - Name: REDIS_URL
+                ValueFrom: !Ref RedisUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasOpenAiApiKeyParam
+              - Name: OPENAI_API_KEY
+                ValueFrom: !Ref OpenAiApiKeyParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasOpenAiModelParam
+              - Name: OPENAI_MODEL
+                ValueFrom: !Ref OpenAiModelParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppResourceNameParam
+              - Name: APP_RESOURCE_NAME
+                ValueFrom: !Ref AppResourceNameParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppAgentServiceUrlParam
+              - Name: APP_AGENT_SERVICE_URL
+                ValueFrom: !Ref AppAgentServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppBankServiceUrlParam
+              - Name: APP_BANK_SERVICE_URL
+                ValueFrom: !Ref AppBankServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppBankCorrespondentServiceUrlParam
+              - Name: APP_BANK_CORRESPONDENT_SERVICE_URL
+                ValueFrom: !Ref AppBankCorrespondentServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppRealEstateServiceUrlParam
+              - Name: APP_REAL_ESTATE_SERVICE_URL
+                ValueFrom: !Ref AppRealEstateServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppIaAdminConfigServiceUrlParam
+              - Name: APP_IA_ADMIN_CONFIGURATION_SERVICE_URL
+                ValueFrom: !Ref AppIaAdminConfigServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppIaCustomerConfigServiceUrlParam
+              - Name: APP_IA_CUSTOMER_CONFIGURATION_SERVICE_URL
+                ValueFrom: !Ref AppIaCustomerConfigServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppCaixaSimulatorServiceUrlParam
+              - Name: APP_CAIXA_SIMULATOR_SERVICE_URL
+                ValueFrom: !Ref AppCaixaSimulatorServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppWhatsappServiceCaixaSimulatorWebhookUrlParam
+              - Name: APP_WHATSAPP_SERVICE_CAIXA_SIMULATOR_WEBHOOK_URL
+                ValueFrom: !Ref AppWhatsappServiceCaixaSimulatorWebhookUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppContactServiceUrlParam
+              - Name: APP_CONTACT_SERVICE_URL
+                ValueFrom: !Ref AppContactServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasAppSalesServiceUrlParam
+              - Name: APP_SALES_SERVICE_URL
+                ValueFrom: !Ref AppSalesServiceUrlParam
+              - !Ref 'AWS::NoValue'
+            - !If
+              - HasProposalProductMapParam
+              - Name: PROPOSAL_PRODUCT_MAP
+                ValueFrom: !Ref ProposalProductMapParam
+              - !Ref 'AWS::NoValue'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB SG
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - !If
+          - UseHttps
+          - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+          - { Ref: "AWS::NoValue" }
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Service SG
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: whatsapp-communication-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref PublicSubnets
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: whatsapp-communication-tg
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /v1/ping
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: '200'
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - !If
+          - DoRedirect
+          - Type: redirect
+            RedirectConfig:
+              Protocol: HTTPS
+              Port: '443'
+              StatusCode: HTTP_301
+          - Type: forward
+            TargetGroupArn: !Ref TargetGroup
+
+  ListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: UseHttps
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - !If
+          - HasCertificate
+          - CertificateArn: !Ref CertificateArn
+          - { Ref: "AWS::NoValue" }
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: whatsapp-communication-service
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          # Temporário: usar subnets públicas para permitir saída à Internet sem NAT.
+          # Depois de criar NAT e rotas nas privadas, retornar para PrivateSubnets.
+          Subnets: !Ref PublicSubnets
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroup
+          ContainerName: app
+          ContainerPort: !Ref ContainerPort
+      TaskDefinition: !Ref ECSTaskDefinition
+
+Outputs:
+  ECRRepositoryUri:
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}'
+  LoadBalancerDNS:
+    Value: !GetAtt LoadBalancer.DNSName

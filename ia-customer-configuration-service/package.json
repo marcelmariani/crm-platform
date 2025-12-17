@@ -1,0 +1,38 @@
+{
+  "name": "ia-customer-configuration-service",
+  "version": "1.1.19",
+  "type": "module",
+  "description": "API Node.js com inteligencia da IA, onde será descrito o Prompt com regras de negócio do Cliente.",
+  "main": "src/index.js",
+  "scripts": {
+    "dev-worker": "cross-env NODE_ENV=development nodemon src/queues/caixaSimulatorQueue.js",
+    "dev": "cross-env NODE_ENV=development nodemon src/index.js",
+    "test": "cross-env NODE_ENV=test vitest run --coverage",
+    "staging": "cross-env NODE_ENV=staging nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "cors": "^2.8.5",
+    "cross-env": "^10.0.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "helmet": "^7.0.0",
+    "install": "^0.13.0",
+    "joi": "^18.0.1",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^7.0.0",
+    "winston": "^3.0.0",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@vitest/coverage-v8": "^0.34.6",
+    "mongodb-memory-server": "^10.1.4",
+    "serverless-offline": "^13.3.0",
+    "serverless-prune-plugin": "^2.0.2",
+    "nodemon": "^2.0.0",
+    "supertest": "^6.3.4",
+    "vitest": "^0.34.6"
+  }
+}

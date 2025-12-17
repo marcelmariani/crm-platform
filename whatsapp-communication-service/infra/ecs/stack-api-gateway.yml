@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API Gateway HTTP API (with free HTTPS) in front of ECS ALB
+
+Parameters:
+  AlbDnsName:
+    Type: String
+    Description: DNS name of the Application Load Balancer (from ECS stack output)
+    # Example: whatsapp-communication-alb-123456789.us-east-1.elb.amazonaws.com
+  
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway stage name
+  
+  ThrottlingBurstLimit:
+    Type: Number
+    Default: 5000
+    Description: API Gateway throttling burst limit
+  
+  ThrottlingRateLimit:
+    Type: Number
+    Default: 2000
+    Description: API Gateway throttling rate limit (requests per second)
+
+Resources:
+  
+  # HTTP API (mais barato e simples que REST API)
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: whatsapp-communication-api
+      Description: API Gateway with HTTPS for WhatsApp Communication Service
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - PATCH
+          - OPTIONS
+        AllowHeaders:
+          - '*'
+        MaxAge: 300
+
+  # Integração com ALB via HTTP Proxy
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !Sub 'http://${AlbDnsName}'
+      IntegrationMethod: ANY
+      PayloadFormatVersion: '1.0'
+      ConnectionType: INTERNET
+      TimeoutInMillis: 30000
+
+  # Rota padrão que encaminha tudo para o ALB
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${HttpApiIntegration}'
+
+  # Stage de produção
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: !Ref StageName
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: !Ref ThrottlingBurstLimit
+        ThrottlingRateLimit: !Ref ThrottlingRateLimit
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '$context.requestId $context.error.message $context.error.messageString'
+
+  # CloudWatch Logs para API Gateway
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/apigateway/whatsapp-communication-api
+      RetentionInDays: 7
+
+Outputs:
+  ApiGatewayHttpsUrl:
+    Description: HTTPS endpoint URL for API Gateway
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+    Export:
+      Name: WhatsAppCommunicationApiUrl
+  
+  ApiGatewayId:
+    Description: API Gateway ID
+    Value: !Ref HttpApi
+  
+  ApiGatewayStageName:
+    Description: API Gateway Stage Name
+    Value: !Ref StageName

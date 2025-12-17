@@ -1,0 +1,46 @@
+[
+  { "ParameterKey": "VpcId", "ParameterValue": "vpc-0f323895693ae6286" },
+  { "ParameterKey": "PublicSubnets", "ParameterValue": "subnet-05e017be984834212,subnet-052b71ae3fcc97b3a" },
+  { "ParameterKey": "PrivateSubnets", "ParameterValue": "subnet-05e017be984834212,subnet-052b71ae3fcc97b3a" },
+
+  { "ParameterKey": "ECRRepoName", "ParameterValue": "whatsapp-communication-service" },
+  { "ParameterKey": "ContainerPort", "ParameterValue": "3000" },
+  { "ParameterKey": "DesiredCount", "ParameterValue": "1" },
+
+  { "ParameterKey": "MongoUriParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/mongo-uri" },
+  { "ParameterKey": "MongoDatabaseParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/mongo-database" },
+  { "ParameterKey": "JwtSecretParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-secret" },
+  { "ParameterKey": "JwtServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-service-url" },
+  { "ParameterKey": "LogLevelParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/common/log-level" },
+  { "ParameterKey": "RedisUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/redis/url" },
+
+  { "ParameterKey": "EnableHttps", "ParameterValue": "false" },
+  { "ParameterKey": "RedirectHttpToHttps", "ParameterValue": "false" },
+  { "ParameterKey": "CertificateArn", "ParameterValue": "" },
+
+  { "ParameterKey": "ExecutionRoleArnParam", "ParameterValue": "arn:aws:iam::417132395312:role/ecsTaskExecutionRole" },
+  { "ParameterKey": "AwsRegionParam", "ParameterValue": "us-east-1" },
+  { "ParameterKey": "AwsS3BucketParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/aws/s3-bucket-name" },
+
+  { "ParameterKey": "AwsAccessKeyIdParam", "ParameterValue": "" },
+  { "ParameterKey": "AwsSecretAccessKeyParam", "ParameterValue": "" },
+
+  { "ParameterKey": "JwtAdminUserParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-admin-username" },
+  { "ParameterKey": "JwtAdminPassParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/auth-service/jwt-admin-pass" },
+
+  { "ParameterKey": "OpenAiApiKeyParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/openai/api-key" },
+  { "ParameterKey": "OpenAiModelParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/openai/model" },
+  { "ParameterKey": "AppResourceNameParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/app_resource_name" },
+  { "ParameterKey": "ProposalProductMapParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/whatsapp-communication-service/proposal-product-map" },
+
+  { "ParameterKey": "AppAgentServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/agent-service-url" },
+  { "ParameterKey": "AppBankServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/bank-service-url" },
+  { "ParameterKey": "AppBankCorrespondentServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/bank-correspondent-service-url" },
+  { "ParameterKey": "AppRealEstateServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/real-estate-service-url" },
+  { "ParameterKey": "AppIaAdminConfigServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/ia-admin-configuration-service-url" },
+  { "ParameterKey": "AppIaCustomerConfigServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/ia-customer-configuration-service-url" },
+  { "ParameterKey": "AppCaixaSimulatorServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/caixa-simulator-service-url" },
+  { "ParameterKey": "AppWhatsappServiceCaixaSimulatorWebhookUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/whatsapp-service-caixa-simulator-webhook-url" },
+  { "ParameterKey": "AppContactServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/contact-service-url" },
+  { "ParameterKey": "AppSalesServiceUrlParam", "ParameterValue": "arn:aws:ssm:us-east-1:417132395312:parameter/smartia/production/app-services/sales-service-url" }
+]

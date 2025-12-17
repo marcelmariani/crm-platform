@@ -1,0 +1,45 @@
+{
+  "name": "notification-service",
+  "version": "1.0.9",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev-worker": "cross-env NODE_ENV=development nodemon src/workers/notificationWorker.js",
+    "dev": "cross-env NODE_ENV=development nodemon src/index.js",
+    "lint": "npx eslint src --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "test": "cross-env NODE_ENV=test vitest run --coverage",
+    "staging": "cross-env NODE_ENV=staging nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "bullmq": "^5.58.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fetch": "^1.1.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.7.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.3.2",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.5",
+    "util": "^0.12.5",
+    "winston": "^3.8.2",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.32.0",
+    "globals": "^16.3.0",
+    "mongodb-memory-server": "^8.0.0",
+    "serverless-offline": "^13.3.0",
+    "serverless-prune-plugin": "^2.0.2",
+    "nodemon": "^3.0.3",
+    "supertest": "^6.3.0",
+    "vitest": "^3.2.4"
+  }
+}

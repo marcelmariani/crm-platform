@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+# Otimizado: 2 estágios apenas (builder + runtime)
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Copy package files primeiro (melhor cache)
+COPY package.json package-lock.json* ./
+
+# Instala dependências (cacheable)
+RUN npm ci --omit=dev --no-audit --no-fund
+
+# Copy source (invalidates cache de deps se mudar source)
+COPY . .
+
+# Runtime: minimal image
+FROM node:20-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV WA_SESSION_DIR=/data/wa-sessions
+ENV PORT=3100
+
+# Copiar apenas node_modules e app source do builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/package.json ./
+
+# Criar diretorios apenas (sem chown recursivo)
+RUN mkdir -p /data/wa-sessions ./wa-sessions
+
+# Non-root user
+USER node
+
+VOLUME ["/data"]
+EXPOSE 3100
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+	CMD wget -qO- http://127.0.0.1:3100/v1/ping || exit 1
+
+CMD ["node", "src/index.js"]
